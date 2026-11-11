@@ -34,18 +34,11 @@ namespace CBDownloader.ViewModels
         private string _downloadFolderPath;
 
         [ObservableProperty]
-        private bool _useBrowserCookies;
-
-        [ObservableProperty]
-        private string _browserForCookies;
-
-        [ObservableProperty]
         private string _appTheme;
         
         [ObservableProperty]
         private bool _alwaysOnTop;
 
-        public ObservableCollection<string> AvailableBrowsers { get; } = new ObservableCollection<string> { "edge", "chrome", "firefox", "opera", "opera:gx", "brave", "vivaldi" };
         public ObservableCollection<string> AvailableThemes { get; } = new ObservableCollection<string> { "System", "Light", "Dark" };
 
         public SettingsViewModel()
@@ -55,8 +48,6 @@ namespace CBDownloader.ViewModels
             StartWithWindows = CheckIfAutoStartEnabled();
 
             DownloadFolderPath = SettingsService.Current.DownloadFolderPath;
-            UseBrowserCookies = SettingsService.Current.UseBrowserCookies;
-            BrowserForCookies = SettingsService.Current.BrowserForCookies;
             AppTheme = SettingsService.Current.AppTheme;
             AlwaysOnTop = SettingsService.Current.AlwaysOnTop;
         }
@@ -83,18 +74,6 @@ namespace CBDownloader.ViewModels
         partial void OnDownloadFolderPathChanged(string value)
         {
             SettingsService.Current.DownloadFolderPath = value;
-            SettingsService.Save();
-        }
-
-        partial void OnUseBrowserCookiesChanged(bool value)
-        {
-            SettingsService.Current.UseBrowserCookies = value;
-            SettingsService.Save();
-        }
-
-        partial void OnBrowserForCookiesChanged(string value)
-        {
-            SettingsService.Current.BrowserForCookies = value;
             SettingsService.Save();
         }
 

@@ -172,7 +172,7 @@ namespace CBDownloader.Services
 
         private void ApplyCookiesIfEnabled(OptionSet options)
         {
-            if (SettingsService.Current.UseBrowserCookies && File.Exists(_cookiesPath))
+            if (File.Exists(_cookiesPath))
             {
                 options.AddCustomOption("--cookies", $"\"{_cookiesPath}\"");
             }
@@ -258,7 +258,7 @@ namespace CBDownloader.Services
                 return res.Data;
             }
 
-            if (SettingsService.Current.UseBrowserCookies && File.Exists(_cookiesPath))
+            if (File.Exists(_cookiesPath))
             {
                 var cookieOpts = new OptionSet
                 {
@@ -387,7 +387,7 @@ namespace CBDownloader.Services
             var options = CreateDownloadOptions(isVideo, accelerate, finalOutputFolder, includeCookies: false);
             var result = await RunDownloadWithRetry(url, isVideo, options, progress, ct);
 
-            if (!result.Success && SettingsService.Current.UseBrowserCookies && File.Exists(_cookiesPath))
+            if (!result.Success && File.Exists(_cookiesPath))
             {
                 var cookieOptions = CreateDownloadOptions(isVideo, accelerate, finalOutputFolder, includeCookies: true);
                 result = await RunDownloadWithRetry(url, isVideo, cookieOptions, progress, ct);
