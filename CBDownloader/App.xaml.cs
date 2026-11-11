@@ -94,10 +94,6 @@ namespace CBDownloader
         public void BringMainWindowToFrontWithUrl(string url)
         {
             BringMainWindowToFront();
-            if (_mainViewModel != null)
-            {
-                _ = _mainViewModel.InitializeAndFetchMetadata(url);
-            }
         }
 
         private DownloadToastWindow? _currentToast;

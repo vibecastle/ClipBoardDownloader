@@ -3,35 +3,21 @@ using CommunityToolkit.Mvvm.Input;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Threading.Tasks;
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using CBDownloader.Models;
 using CBDownloader.Services;
-using YoutubeDLSharp;
 
 namespace CBDownloader.ViewModels
 {
     public partial class MainViewModel : ObservableObject
     {
         private readonly MediaDownloadService _mediaService;
-        private System.Threading.CancellationTokenSource? _metadataCts;
-        private bool _hasValidMetadata;
 
-        public ObservableCollection<DownloadItemViewModel> Downloads { get; } = new ObservableCollection<DownloadItemViewModel>();
+        public ObservableCollection<DownloadItemViewModel> Downloads { get; } = new();
 
-        [ObservableProperty]
-        [NotifyCanExecuteChangedFor(nameof(DownloadVideoCommand))]
-        [NotifyCanExecuteChangedFor(nameof(DownloadAudioCommand))]
-        private bool _isBusy;
-
-        [ObservableProperty]
-        private string _videoUrl = string.Empty;
-
-        [ObservableProperty]
-        private string _videoTitle = "Waiting for link...";
-
-        [ObservableProperty]
-        private string _videoThumbnailUrl = string.Empty;
+        public bool HasNoDownloads => Downloads.Count == 0;
 
         public bool IsTopmost => SettingsService.Current.AlwaysOnTop;
 
@@ -42,82 +28,22 @@ namespace CBDownloader.ViewModels
             Current = this;
             _mediaService = mediaService ?? new MediaDownloadService();
             _ = _mediaService.EnsureBinariesExist();
+
+            Downloads.CollectionChanged += (s, e) => OnPropertyChanged(nameof(HasNoDownloads));
         }
 
-        public async Task InitializeAndFetchMetadata(string url)
+        public void QueueDirect(string url, bool isVideo, string? title = null, string? thumbnailUrl = null)
         {
             url = Utils.RegexHelper.NormalizeUrl(url);
             if (string.IsNullOrWhiteSpace(url)) return;
 
-            if (_hasValidMetadata && !IsBusy && string.Equals(VideoUrl, url, StringComparison.Ordinal))
+            if (Utils.RegexHelper.IsYoutubePurePlaylistUrl(url))
             {
+                ((App)System.Windows.Application.Current).ShowPlaylistWindow(_mediaService, url, title ?? "Playlist", isVideo);
                 return;
             }
 
-            _metadataCts?.Cancel();
-            _metadataCts?.Dispose();
-            var cts = new System.Threading.CancellationTokenSource();
-            _metadataCts = cts;
-            var token = cts.Token;
-
-            VideoUrl = url;
-            VideoTitle = "Fetching media information...";
-            VideoThumbnailUrl = string.Empty;
-            _hasValidMetadata = false;
-            IsBusy = true;
-
-            try
-            {
-                await _mediaService.EnsureBinariesExist();
-                token.ThrowIfCancellationRequested();
-
-                var metadata = await _mediaService.GetVideoMetadataAsync(url, token);
-                if (token.IsCancellationRequested) return;
-
-                VideoTitle = !string.IsNullOrWhiteSpace(metadata.Title) ? metadata.Title : "Media Ready";
-                VideoThumbnailUrl = metadata.Thumbnail ?? string.Empty;
-                _hasValidMetadata = true;
-            }
-            catch (OperationCanceledException)
-            {
-                return;
-            }
-            catch (Exception)
-            {
-                if (!token.IsCancellationRequested)
-                {
-                    VideoTitle = "Ready for links";
-                    _hasValidMetadata = false;
-                }
-            }
-            finally
-            {
-                if (_metadataCts == cts)
-                {
-                    IsBusy = false;
-                }
-            }
-        }
-
-        private bool CanDownload() => !IsBusy && _hasValidMetadata && !string.IsNullOrWhiteSpace(VideoUrl);
-
-        [RelayCommand(CanExecute = nameof(CanDownload))]
-        private void DownloadVideo() => AddDownloadToQueue(true);
-
-        [RelayCommand(CanExecute = nameof(CanDownload))]
-        private void DownloadAudio() => AddDownloadToQueue(false);
-
-        private void AddDownloadToQueue(bool isVideo)
-        {
-            if (string.IsNullOrWhiteSpace(VideoUrl) || IsBusy) return;
-
-            if (Utils.RegexHelper.IsYoutubePurePlaylistUrl(VideoUrl))
-            {
-                ((App)System.Windows.Application.Current).ShowPlaylistWindow(_mediaService, VideoUrl, VideoTitle, isVideo);
-                return;
-            }
-
-            if (Utils.RegexHelper.IsYoutubePlaylistUrl(VideoUrl))
+            if (Utils.RegexHelper.IsYoutubePlaylistUrl(url))
             {
                 var result = System.Windows.MessageBox.Show(
                     "This link is part of a playlist.\nDownload the full playlist?",
@@ -127,22 +53,14 @@ namespace CBDownloader.ViewModels
 
                 if (result == MessageBoxResult.Yes)
                 {
-                    ((App)System.Windows.Application.Current).ShowPlaylistWindow(_mediaService, VideoUrl, VideoTitle, isVideo);
+                    ((App)System.Windows.Application.Current).ShowPlaylistWindow(_mediaService, url, title ?? "Playlist", isVideo);
                     return;
                 }
             }
 
-            EnqueueSingleItem(VideoTitle, VideoThumbnailUrl, VideoUrl, isVideo);
-        }
-
-        public void QueueDirect(string url, bool isVideo, string? title = null, string? thumbnailUrl = null)
-        {
-            url = Utils.RegexHelper.NormalizeUrl(url);
-            if (string.IsNullOrWhiteSpace(url)) return;
-
-            string itemTitle = !string.IsNullOrWhiteSpace(title) && title != "Fetching info..." && title != "Fetching link..."
+            string itemTitle = !string.IsNullOrWhiteSpace(title) && title != "Fetching info..." && title != "Fetching link..." && title != "Media Download"
                 ? title
-                : (isVideo ? "Video Download" : "Audio Download");
+                : "Fetching title...";
 
             EnqueueSingleItem(itemTitle, thumbnailUrl ?? string.Empty, url, isVideo);
             ((App)System.Windows.Application.Current).ShowNotification("Download Queued", $"{(isVideo ? "MP4" : "MP3")}: {itemTitle}");
@@ -169,6 +87,22 @@ namespace CBDownloader.ViewModels
             {
                 EnqueueSingleItem(item.Title, item.ThumbnailUrl, item.VideoUrl, isVideo, playlistName);
             }
+        }
+
+        [RelayCommand]
+        private void OpenFolder()
+        {
+            try
+            {
+                var folder = SettingsService.Current.DownloadFolderPath;
+                if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = folder,
+                    UseShellExecute = true
+                });
+            }
+            catch { }
         }
 
         [RelayCommand]

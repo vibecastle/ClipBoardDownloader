@@ -57,6 +57,29 @@ namespace CBDownloader.ViewModels
             var cts = new CancellationTokenSource();
             _cts = cts;
 
+            if (string.IsNullOrWhiteSpace(VideoTitle) || VideoTitle == "Fetching title..." || VideoTitle == "Media Download" || VideoTitle == "Video Download" || VideoTitle == "Audio Download" || VideoTitle == "Ready to download")
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var meta = await _mediaService.GetFastMetadataAsync(VideoUrl, cts.Token);
+                        if (!string.IsNullOrWhiteSpace(meta.Title))
+                        {
+                            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                VideoTitle = meta.Title;
+                                if (!string.IsNullOrWhiteSpace(meta.ThumbnailUrl) && string.IsNullOrWhiteSpace(VideoThumbnailUrl))
+                                {
+                                    VideoThumbnailUrl = meta.ThumbnailUrl;
+                                }
+                            });
+                        }
+                    }
+                    catch { }
+                });
+            }
+
             IsDownloading = true;
             IsCompleted = false;
             _isPostProcessing = false;
@@ -119,6 +142,20 @@ namespace CBDownloader.ViewModels
                     DownloadStatus = "Completed!";
                     DownloadProgress = 100;
                     IsCompleted = true;
+
+                    if (!string.IsNullOrWhiteSpace(result.Data))
+                    {
+                        try
+                        {
+                            var actualName = Path.GetFileNameWithoutExtension(result.Data);
+                            if (!string.IsNullOrWhiteSpace(actualName) &&
+                                (string.IsNullOrWhiteSpace(VideoTitle) || VideoTitle == "Fetching title..." || VideoTitle == "Media Download" || VideoTitle == "Video Download" || VideoTitle == "Audio Download" || VideoTitle == "Ready to download"))
+                            {
+                                VideoTitle = actualName;
+                            }
+                        }
+                        catch { }
+                    }
                     
                     ((App)System.Windows.Application.Current).ShowNotification("Download Completed!", VideoTitle);
                 }

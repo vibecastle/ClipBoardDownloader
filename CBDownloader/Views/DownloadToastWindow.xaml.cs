@@ -72,25 +72,29 @@ namespace CBDownloader.Views
             {
                 try
                 {
-                    await _mediaService.EnsureBinariesExist();
-                    if (token.IsCancellationRequested) return;
-
-                    var metadata = await _mediaService.GetVideoMetadataAsync(url, token);
+                    var meta = await _mediaService.GetFastMetadataAsync(url, token);
                     if (token.IsCancellationRequested) return;
 
                     Dispatcher.Invoke(() =>
                     {
-                        FetchedTitle = metadata.Title ?? "Ready to download";
-                        FetchedThumbnailUrl = metadata.Thumbnail ?? string.Empty;
-                        TitleText.Text = FetchedTitle;
-
-                        if (!string.IsNullOrWhiteSpace(FetchedThumbnailUrl))
+                        if (!string.IsNullOrWhiteSpace(meta.Title))
                         {
+                            FetchedTitle = meta.Title;
+                            TitleText.Text = meta.Title;
+                        }
+                        else
+                        {
+                            TitleText.Text = "Ready to download";
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(meta.ThumbnailUrl))
+                        {
+                            FetchedThumbnailUrl = meta.ThumbnailUrl;
                             try
                             {
                                 var bmp = new BitmapImage();
                                 bmp.BeginInit();
-                                bmp.UriSource = new Uri(FetchedThumbnailUrl);
+                                bmp.UriSource = new Uri(meta.ThumbnailUrl);
                                 bmp.CacheOption = BitmapCacheOption.OnLoad;
                                 bmp.EndInit();
                                 ThumbnailImage.Source = bmp;
@@ -106,7 +110,7 @@ namespace CBDownloader.Views
                     {
                         if (!token.IsCancellationRequested && string.IsNullOrEmpty(FetchedTitle))
                         {
-                            TitleText.Text = "Link Ready";
+                            TitleText.Text = "Ready to download";
                         }
                     });
                 }
@@ -150,9 +154,8 @@ namespace CBDownloader.Views
         private void TriggerDownload(bool isVideo)
         {
             _timer.Stop();
-            _metadataCts?.Cancel();
 
-            string title = !string.IsNullOrWhiteSpace(FetchedTitle) ? FetchedTitle : "Media Download";
+            string? title = !string.IsNullOrWhiteSpace(FetchedTitle) ? FetchedTitle : null;
             MainViewModel.Current?.QueueDirect(CurrentUrl, isVideo, title, FetchedThumbnailUrl);
 
             if (System.Windows.Application.Current is App app)
@@ -166,11 +169,10 @@ namespace CBDownloader.Views
         private void OnOpenAppClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             _timer.Stop();
-            _metadataCts?.Cancel();
 
             if (System.Windows.Application.Current is App app)
             {
-                app.BringMainWindowToFrontWithUrl(CurrentUrl);
+                app.BringMainWindowToFront();
             }
 
             CloseToast();

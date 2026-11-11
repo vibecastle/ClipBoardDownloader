@@ -9,6 +9,7 @@ using YoutubeDLSharp;
 using YoutubeDLSharp.Options;
 using CBDownloader.Models;
 using CBDownloader.Utils;
+using Newtonsoft.Json.Linq;
 
 namespace CBDownloader.Services
 {
@@ -174,6 +175,68 @@ namespace CBDownloader.Services
             if (SettingsService.Current.UseBrowserCookies && File.Exists(_cookiesPath))
             {
                 options.AddCustomOption("--cookies", $"\"{_cookiesPath}\"");
+            }
+        }
+
+        public async Task<(string? Title, string? ThumbnailUrl)> GetFastMetadataAsync(string url, CancellationToken ct = default)
+        {
+            url = RegexHelper.NormalizeUrl(url);
+            if (string.IsNullOrWhiteSpace(url)) return (null, null);
+
+            // 1. Fast oEmbed for YouTube, TikTok, Vimeo, SoundCloud (~50ms - 200ms)
+            try
+            {
+                string? oEmbedUrl = null;
+                if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+                {
+                    var host = uri.Host.ToLowerInvariant();
+                    if (host.Contains("youtube.com") || host.Contains("youtu.be"))
+                    {
+                        oEmbedUrl = $"https://www.youtube.com/oembed?url={Uri.EscapeDataString(url)}&format=json";
+                    }
+                    else if (host.Contains("tiktok.com"))
+                    {
+                        oEmbedUrl = $"https://www.tiktok.com/oembed?url={Uri.EscapeDataString(url)}";
+                    }
+                    else if (host.Contains("vimeo.com"))
+                    {
+                        oEmbedUrl = $"https://vimeo.com/api/oembed.json?url={Uri.EscapeDataString(url)}";
+                    }
+                    else if (host.Contains("soundcloud.com"))
+                    {
+                        oEmbedUrl = $"https://soundcloud.com/oembed?url={Uri.EscapeDataString(url)}&format=json";
+                    }
+                }
+
+                if (oEmbedUrl != null)
+                {
+                    using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+                    using var resp = await SharedHttpClient.GetAsync(oEmbedUrl, linkedCts.Token);
+                    if (resp.IsSuccessStatusCode)
+                    {
+                        var json = await resp.Content.ReadAsStringAsync(linkedCts.Token);
+                        var doc = JObject.Parse(json);
+                        string? title = (string?)doc["title"];
+                        string? thumbnail = (string?)doc["thumbnail_url"];
+                        if (!string.IsNullOrWhiteSpace(title))
+                        {
+                            return (title, thumbnail);
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            // 2. Fallback to yt-dlp metadata extraction
+            try
+            {
+                var meta = await GetVideoMetadataAsync(url, ct);
+                return (meta?.Title, meta?.Thumbnail);
+            }
+            catch
+            {
+                return (null, null);
             }
         }
 
