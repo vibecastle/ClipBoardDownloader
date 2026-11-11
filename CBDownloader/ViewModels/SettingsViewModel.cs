@@ -164,7 +164,7 @@ namespace CBDownloader.ViewModels
             UpdateStatus = "Checking for updates...";
             try
             {
-                const string url = "https://api.github.com/repos/dannydays/ClipBoardDownloader/releases/latest";
+                const string url = "https://api.github.com/repos/vibecastle/ClipBoardDownloader/releases/latest";
                 using var response = await SharedHttpClient.GetAsync(url);
                 
                 if (response.IsSuccessStatusCode)
