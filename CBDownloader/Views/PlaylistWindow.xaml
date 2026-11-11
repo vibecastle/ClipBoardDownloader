@@ -142,7 +142,7 @@
                 </TextBlock>
                 <Button Grid.Column="1" Content="Cancel" Width="85" Height="34" Margin="0,0,8,0"
                         Command="{Binding CancelCommand}"/>
-                <Button Grid.Column="2" Content="⬇️ Download Selected" Style="{StaticResource PrimaryYellowButton}" 
+                <Button Grid.Column="2" Content="⬇️ Download Selected" 
                         Height="34" Padding="16,0"
                         Command="{Binding StartDownloadCommand}">
                     <Button.Style>
