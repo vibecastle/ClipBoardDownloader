@@ -20,7 +20,6 @@ namespace CBDownloader
         private EventWaitHandle? _showEvent;
         private bool _isExiting;
         private readonly MediaDownloadService _mediaService = new();
-        private readonly ExtensionServerService _extensionServer = new();
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -68,9 +67,6 @@ namespace CBDownloader
             ThemeManager.Initialize();
 
             SetupNotifyIcon();
-
-            _extensionServer.DownloadRequested += (s, url) => ShowClipboardToast(url);
-            _extensionServer.Start();
 
             _clipboardMonitor = new ClipboardMonitorService();
             _clipboardMonitor.ClipboardUrlCopied += (s, url) => ShowClipboardToast(url);
@@ -273,7 +269,6 @@ namespace CBDownloader
                 _currentToast = null;
             }
 
-            _extensionServer?.Stop();
             _clipboardMonitor?.StopMonitoring();
             if (_notifyIcon != null)
             {

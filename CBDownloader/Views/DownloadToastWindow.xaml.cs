@@ -155,6 +155,11 @@ namespace CBDownloader.Views
             string title = !string.IsNullOrWhiteSpace(FetchedTitle) ? FetchedTitle : "Media Download";
             MainViewModel.Current?.QueueDirect(CurrentUrl, isVideo, title, FetchedThumbnailUrl);
 
+            if (System.Windows.Application.Current is App app)
+            {
+                app.BringMainWindowToFront();
+            }
+
             CloseToast();
         }
 

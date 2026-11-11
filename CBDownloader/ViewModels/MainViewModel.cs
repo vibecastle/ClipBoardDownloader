@@ -171,13 +171,6 @@ namespace CBDownloader.ViewModels
             }
         }
 
-        private void ClearPreview()
-        {
-            VideoUrl = string.Empty;
-            VideoTitle = "Waiting for link...";
-            VideoThumbnailUrl = string.Empty;
-        }
-
         [RelayCommand]
         private void Exit()
         {

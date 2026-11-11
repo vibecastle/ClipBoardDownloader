@@ -83,11 +83,11 @@ namespace CBDownloader.Services
                 }
                 if (!File.Exists(_ytdl.YoutubeDLPath))
                 {
-                    downloadTasks.Add(Utils.DownloadYtDlp(_binFolder));
+                    downloadTasks.Add(YoutubeDLSharp.Utils.DownloadYtDlp(_binFolder));
                 }
                 if (!File.Exists(_ytdl.FFmpegPath))
                 {
-                    downloadTasks.Add(Utils.DownloadFFmpeg(_binFolder));
+                    downloadTasks.Add(YoutubeDLSharp.Utils.DownloadFFmpeg(_binFolder));
                 }
 
                 if (downloadTasks.Count > 0)
