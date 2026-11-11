@@ -1,8 +1,8 @@
 <Window x:Class="CBDownloader.Views.PlaylistWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Playlist" Width="560" Height="540"
-        MinHeight="360" ResizeMode="CanResizeWithGrip"
+        Title="Playlist - CBDownloader" Width="580" Height="560"
+        MinHeight="380" ResizeMode="CanResizeWithGrip"
         WindowStartupLocation="CenterOwner"
         Icon="/Assets/icon.ico"
         Background="{DynamicResource WindowBackgroundBrush}">
@@ -25,19 +25,15 @@
                 Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}"
                 Panel.ZIndex="10">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                <TextBlock Text="⏳" FontSize="36" HorizontalAlignment="Center" Margin="0,0,0,12"/>
-                <TextBlock Text="{Binding LoadingStatus}" FontSize="13"
+                <TextBlock Text="⏳" FontSize="40" HorizontalAlignment="Center" Margin="0,0,0,12" Foreground="{DynamicResource AccentBrush}"/>
+                <TextBlock Text="{Binding LoadingStatus}" FontSize="13" FontWeight="SemiBold"
                            Foreground="{DynamicResource WindowForegroundBrush}"
                            HorizontalAlignment="Center"/>
             </StackPanel>
         </Border>
 
         <!-- Main Content -->
-        <Grid Margin="16" Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
-            <!-- Invisible placeholder to keep layout during load -->
-        </Grid>
-
-        <Grid Margin="16">
+        <Grid Margin="18">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -46,11 +42,11 @@
             </Grid.RowDefinitions>
 
             <!-- Header -->
-            <StackPanel Grid.Row="0" Margin="0,0,0,10">
-                <TextBlock Text="{Binding PlaylistTitle}" FontSize="15" FontWeight="Bold"
+            <StackPanel Grid.Row="0" Margin="0,0,0,12">
+                <TextBlock Text="{Binding PlaylistTitle}" FontSize="16" FontWeight="Bold"
                            Foreground="{DynamicResource WindowForegroundBrush}"
                            TextTrimming="CharacterEllipsis"/>
-                <TextBlock FontSize="11" Margin="0,3,0,0"
+                <TextBlock FontSize="12" Margin="0,4,0,0"
                            Foreground="{DynamicResource SecondaryForegroundBrush}">
                     <TextBlock.Text>
                         <MultiBinding StringFormat="{}Select videos to download  •  {0}/{1} selected">
@@ -62,15 +58,16 @@
             </StackPanel>
 
             <!-- Toolbar -->
-            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
-                <Button Content="Select All" Width="90" Height="26" Margin="0,0,6,0"
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+                <Button Content="Select All" Width="95" Height="28" Margin="0,0,8,0"
                         Command="{Binding SelectAllCommand}"/>
-                <Button Content="Deselect All" Width="95" Height="26"
+                <Button Content="Deselect All" Width="95" Height="28"
                         Command="{Binding DeselectAllCommand}"/>
             </StackPanel>
 
             <!-- Video List -->
-            <Border Grid.Row="2" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="3">
+            <Border Grid.Row="2" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8"
+                    Background="{DynamicResource ItemBackgroundBrush}" Padding="4">
                 <ListView ItemsSource="{Binding Entries}"
                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                           Background="Transparent" BorderThickness="0">
@@ -89,11 +86,11 @@
                     </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate>
-                            <Grid>
+                            <Grid Margin="2">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="54"/>
+                                    <ColumnDefinition Width="60"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
@@ -104,20 +101,23 @@
                                 <TextBlock Grid.Column="1" Text="{Binding Index}"
                                            Style="{StaticResource IndexTextStyle}"/>
 
-                                <Border Grid.Column="2" Width="52" Height="34" CornerRadius="2"
-                                        Background="{DynamicResource ButtonBackgroundBrush}"
-                                        Margin="0,0,8,0">
-                                    <Image Source="{Binding ThumbnailUrl}" Stretch="UniformToFill"/>
+                                <Border Grid.Column="2" Width="56" Height="36" CornerRadius="4"
+                                        Background="#18181B" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                        Margin="0,0,10,0">
+                                    <Grid ClipToBounds="True">
+                                        <TextBlock Text="🎬" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#444444"/>
+                                        <Image Source="{Binding ThumbnailUrl}" Stretch="UniformToFill"/>
+                                    </Grid>
                                 </Border>
 
                                 <TextBlock Grid.Column="3" Text="{Binding Title}"
-                                           FontSize="12" TextTrimming="CharacterEllipsis"
+                                           FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource WindowForegroundBrush}"/>
 
                                 <TextBlock Grid.Column="4" Text="{Binding Duration}"
                                            FontSize="11" VerticalAlignment="Center"
-                                           Margin="8,0,0,0"
+                                           Margin="8,0,4,0"
                                            Foreground="{DynamicResource SecondaryForegroundBrush}"/>
                             </Grid>
                         </DataTemplate>
@@ -126,26 +126,27 @@
             </Border>
 
             <!-- Footer -->
-            <Grid Grid.Row="3" Margin="0,10,0,0">
+            <Grid Grid.Row="3" Margin="0,12,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="11"
-                           Foreground="{DynamicResource SecondaryForegroundBrush}">
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="12"
+                           Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold">
                     <TextBlock.Text>
-                        <MultiBinding StringFormat="{}{0} video(s) will be queued">
+                        <MultiBinding StringFormat="{}{0} item(s) will be queued">
                             <Binding Path="SelectedCount"/>
                         </MultiBinding>
                     </TextBlock.Text>
                 </TextBlock>
-                <Button Grid.Column="1" Content="Cancel" Width="80" Height="32" Margin="0,0,8,0"
+                <Button Grid.Column="1" Content="Cancel" Width="85" Height="34" Margin="0,0,8,0"
                         Command="{Binding CancelCommand}"/>
-                <Button Grid.Column="2" Content="⬇️ Download Selected" Height="32" Padding="14,0"
+                <Button Grid.Column="2" Content="⬇️ Download Selected" Style="{StaticResource PrimaryYellowButton}" 
+                        Height="34" Padding="16,0"
                         Command="{Binding StartDownloadCommand}">
                     <Button.Style>
-                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Style TargetType="Button" BasedOn="{StaticResource PrimaryYellowButton}">
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SelectedCount}" Value="0">
                                     <Setter Property="IsEnabled" Value="False"/>

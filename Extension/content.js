@@ -1,5 +1,3 @@
-const SERVER_URL = "http://127.0.0.1:44321/api/download";
-
 // Creates the DOM button
 function createCBDButton(targetUrl, format = 'normal') {
     const btn = document.createElement("button");
@@ -27,9 +25,8 @@ function createCBDButton(targetUrl, format = 'normal') {
         const originalHtml = btn.innerHTML;
         btn.innerHTML = format === 'reels' ? `<span>Wait..</span>` : `Wait...`;
         
-        navigator.clipboard.writeText(finalUrl).catch(err => {});
-        
         chrome.runtime.sendMessage({ action: "download", url: finalUrl }, (response) => {
+            navigator.clipboard.writeText(finalUrl).catch(() => {});
             btn.innerHTML = format === 'reels' ? `<span>OK.</span>` : `OK.`;
             setTimeout(() => btn.innerHTML = originalHtml, 2000);
         });
@@ -113,10 +110,8 @@ function handleInstagram() {
         });
     }
 
-    const articles = document.querySelectorAll('article');
+    const articles = document.querySelectorAll('article:not([data-cbd-injected])');
     articles.forEach(article => {
-        if (article.dataset.cbdInjected) return;
-        
         const linkElem = article.querySelector('a[href*="/p/"], a[href*="/reel/"]');
         if (!linkElem) return;
         
@@ -190,9 +185,8 @@ function injectFloatingButton() {
         const originalHtml = btn.innerHTML;
         btn.innerHTML = `⏳`;
         
-        navigator.clipboard.writeText(url).catch(err => {});
-        
         chrome.runtime.sendMessage({ action: "download", url: url }, (response) => {
+            navigator.clipboard.writeText(url).catch(() => {});
             btn.innerHTML = `✅`;
             setTimeout(() => btn.innerHTML = originalHtml, 2000);
         });
@@ -211,10 +205,17 @@ function getSiteHandler() {
 }
 
 const handler = getSiteHandler();
+let throttleTimer = null;
 
-const observer = new MutationObserver((mutations) => {
-    handler();
-});
+function scheduleHandler() {
+    if (throttleTimer !== null) return;
+    throttleTimer = setTimeout(() => {
+        throttleTimer = null;
+        handler();
+    }, 150);
+}
+
+const observer = new MutationObserver(scheduleHandler);
 
 observer.observe(document.body, { childList: true, subtree: true });
 

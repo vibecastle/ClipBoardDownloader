@@ -139,8 +139,24 @@ namespace CBDownloader.ViewModels
             }
         }
 
-        // Obsolete authentication commands removed
+        private static readonly HttpClient SharedHttpClient = CreateHttpClient();
 
+        private static HttpClient CreateHttpClient()
+        {
+            var client = new HttpClient();
+            client.DefaultRequestHeaders.Add("User-Agent", "ClipBoardDownloader-App");
+            return client;
+        }
+
+        private static bool IsNewerVersion(string remoteTag, string localTag)
+        {
+            if (Version.TryParse(remoteTag.TrimStart('v', 'V'), out var remoteVer) &&
+                Version.TryParse(localTag.TrimStart('v', 'V'), out var localVer))
+            {
+                return remoteVer > localVer;
+            }
+            return !string.Equals(remoteTag, localTag, StringComparison.OrdinalIgnoreCase);
+        }
 
         [RelayCommand]
         private async Task CheckForUpdatesAsync()
@@ -148,21 +164,18 @@ namespace CBDownloader.ViewModels
             UpdateStatus = "Checking for updates...";
             try
             {
-                using var client = new HttpClient();
-                client.DefaultRequestHeaders.Add("User-Agent", "ClipBoardDownloader-App");
-                
-                var url = "https://api.github.com/repos/dannydays/ClipBoardDownloader/releases/latest";
-                var response = await client.GetAsync(url);
+                const string url = "https://api.github.com/repos/dannydays/ClipBoardDownloader/releases/latest";
+                using var response = await SharedHttpClient.GetAsync(url);
                 
                 if (response.IsSuccessStatusCode)
                 {
                     var result = await response.Content.ReadFromJsonAsync<GitHubRelease>();
                     if (result != null && !string.IsNullOrEmpty(result.tag_name))
                     {
-                        if (result.tag_name != CurrentVersion)
+                        if (IsNewerVersion(result.tag_name, CurrentVersion))
                         {
                             UpdateStatus = $"Update available: {result.tag_name}!";
-                            var asset = result.assets.FirstOrDefault(a => a.name.EndsWith(".exe"));
+                            var asset = result.assets.FirstOrDefault(a => a.name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
                             if (asset != null)
                             {
                                 var confirm = System.Windows.MessageBox.Show(
@@ -212,21 +225,20 @@ namespace CBDownloader.ViewModels
             try
             {
                 var tempPath = Path.Combine(Path.GetTempPath(), fileName);
-                using var client = new HttpClient();
-                client.DefaultRequestHeaders.Add("User-Agent", "ClipBoardDownloader-App");
 
-                using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+                using var response = await SharedHttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
                 response.EnsureSuccessStatusCode();
 
                 var totalBytes = response.Content.Headers.ContentLength ?? -1L;
                 var canReportProgress = totalBytes != -1;
 
                 using var contentStream = await response.Content.ReadAsStreamAsync();
-                using var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
+                using var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
 
-                var buffer = new byte[8192];
+                var buffer = new byte[81920];
                 var totalRead = 0L;
                 int bytesRead;
+                int lastProgress = -1;
 
                 while ((bytesRead = await contentStream.ReadAsync(buffer)) > 0)
                 {
@@ -236,7 +248,11 @@ namespace CBDownloader.ViewModels
                     if (canReportProgress)
                     {
                         int progress = (int)((totalRead * 100) / totalBytes);
-                        UpdateStatus = $"Downloading: {progress}%";
+                        if (progress != lastProgress)
+                        {
+                            lastProgress = progress;
+                            UpdateStatus = $"Downloading: {progress}%";
+                        }
                     }
                 }
                 

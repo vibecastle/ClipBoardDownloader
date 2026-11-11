@@ -14,6 +14,8 @@ namespace CBDownloader.ViewModels
     public partial class MainViewModel : ObservableObject
     {
         private readonly MediaDownloadService _mediaService;
+        private System.Threading.CancellationTokenSource? _metadataCts;
+        private bool _hasValidMetadata;
 
         public ObservableCollection<DownloadItemViewModel> Downloads { get; } = new ObservableCollection<DownloadItemViewModel>();
 
@@ -35,38 +37,69 @@ namespace CBDownloader.ViewModels
 
         public static MainViewModel? Current { get; private set; }
 
-        public MainViewModel()
+        public MainViewModel(MediaDownloadService? mediaService = null)
         {
             Current = this;
-            _mediaService = new MediaDownloadService();
+            _mediaService = mediaService ?? new MediaDownloadService();
+            _ = _mediaService.EnsureBinariesExist();
         }
 
         public async Task InitializeAndFetchMetadata(string url)
         {
             url = Utils.RegexHelper.NormalizeUrl(url);
+            if (string.IsNullOrWhiteSpace(url)) return;
+
+            if (_hasValidMetadata && !IsBusy && string.Equals(VideoUrl, url, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _metadataCts?.Cancel();
+            _metadataCts?.Dispose();
+            var cts = new System.Threading.CancellationTokenSource();
+            _metadataCts = cts;
+            var token = cts.Token;
+
             VideoUrl = url;
             VideoTitle = "Fetching media information...";
             VideoThumbnailUrl = string.Empty;
+            _hasValidMetadata = false;
             IsBusy = true;
 
             try
             {
                 await _mediaService.EnsureBinariesExist();
-                var metadata = await _mediaService.GetVideoMetadataAsync(url);
-                VideoTitle = metadata.Title;
-                VideoThumbnailUrl = metadata.Thumbnail;
+                token.ThrowIfCancellationRequested();
+
+                var metadata = await _mediaService.GetVideoMetadataAsync(url, token);
+                if (token.IsCancellationRequested) return;
+
+                VideoTitle = !string.IsNullOrWhiteSpace(metadata.Title) ? metadata.Title : "Media Ready";
+                VideoThumbnailUrl = metadata.Thumbnail ?? string.Empty;
+                _hasValidMetadata = true;
+            }
+            catch (OperationCanceledException)
+            {
+                return;
             }
             catch (Exception)
             {
-                VideoTitle = "Ready for links";
+                if (!token.IsCancellationRequested)
+                {
+                    VideoTitle = "Ready for links";
+                    _hasValidMetadata = false;
+                }
             }
             finally
             {
-                IsBusy = false;
+                if (_metadataCts == cts)
+                {
+                    IsBusy = false;
+                }
             }
         }
 
-        private bool CanDownload() => !IsBusy && !string.IsNullOrWhiteSpace(VideoUrl) && !VideoTitle.Contains("error", StringComparison.OrdinalIgnoreCase);
+        private bool CanDownload() => !IsBusy && _hasValidMetadata && !string.IsNullOrWhiteSpace(VideoUrl);
 
         [RelayCommand(CanExecute = nameof(CanDownload))]
         private void DownloadVideo() => AddDownloadToQueue(true);
@@ -77,6 +110,12 @@ namespace CBDownloader.ViewModels
         private void AddDownloadToQueue(bool isVideo)
         {
             if (string.IsNullOrWhiteSpace(VideoUrl) || IsBusy) return;
+
+            if (Utils.RegexHelper.IsYoutubePurePlaylistUrl(VideoUrl))
+            {
+                ((App)System.Windows.Application.Current).ShowPlaylistWindow(_mediaService, VideoUrl, VideoTitle, isVideo);
+                return;
+            }
 
             if (Utils.RegexHelper.IsYoutubePlaylistUrl(VideoUrl))
             {
@@ -94,6 +133,19 @@ namespace CBDownloader.ViewModels
             }
 
             EnqueueSingleItem(VideoTitle, VideoThumbnailUrl, VideoUrl, isVideo);
+        }
+
+        public void QueueDirect(string url, bool isVideo, string? title = null, string? thumbnailUrl = null)
+        {
+            url = Utils.RegexHelper.NormalizeUrl(url);
+            if (string.IsNullOrWhiteSpace(url)) return;
+
+            string itemTitle = !string.IsNullOrWhiteSpace(title) && title != "Fetching info..." && title != "Fetching link..."
+                ? title
+                : (isVideo ? "Video Download" : "Audio Download");
+
+            EnqueueSingleItem(itemTitle, thumbnailUrl ?? string.Empty, url, isVideo);
+            ((App)System.Windows.Application.Current).ShowNotification("Download Queued", $"{(isVideo ? "MP4" : "MP3")}: {itemTitle}");
         }
 
         private void EnqueueSingleItem(string title, string thumbnailUrl, string url, bool isVideo, string? playlistName = null)

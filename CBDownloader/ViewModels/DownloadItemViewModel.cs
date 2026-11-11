@@ -52,38 +52,46 @@ namespace CBDownloader.ViewModels
 
         public async Task StartDownloadAsync()
         {
+            _cts?.Cancel();
+            _cts?.Dispose();
+            var cts = new CancellationTokenSource();
+            _cts = cts;
+
             IsDownloading = true;
             IsCompleted = false;
             _isPostProcessing = false;
             DownloadStatus = "Starting download...";
             DownloadProgress = 0;
-            _cts = new CancellationTokenSource();
+
+            long lastUiUpdateTick = 0;
 
             var progress = new Progress<DownloadProgress>(p =>
             {
-                if (_cts != null && _cts.IsCancellationRequested) return;
+                if (cts.IsCancellationRequested) return;
 
-                var stateStr = p.State.ToString();
-                if (stateStr == "Downloading" && !_isPostProcessing)
+                if (p.State == DownloadState.Downloading && !_isPostProcessing)
                 {
                     var prc = p.Progress * 100;
-                    if (prc >= DownloadProgress)
-                    {
-                        DownloadProgress = prc > 100 ? 100 : prc;
-                    }
-                    
-                    if (DownloadProgress >= 100)
+                    if (prc >= 100)
                     {
                         _isPostProcessing = true;
                         DownloadProgress = 99;
                         DownloadStatus = "Converting media (please wait)... 99.9%";
+                        return;
                     }
-                    else
+
+                    long now = Environment.TickCount64;
+                    if (prc - DownloadProgress >= 0.3 || now - lastUiUpdateTick >= 80)
                     {
+                        lastUiUpdateTick = now;
+                        if (prc > DownloadProgress)
+                        {
+                            DownloadProgress = prc;
+                        }
                         DownloadStatus = $"Downloading... {DownloadProgress:F1}% ({p.DownloadSpeed})";
                     }
                 }
-                else if (stateStr == "PostProcessing")
+                else if (p.State == DownloadState.PostProcessing)
                 {
                     if (!_isPostProcessing)
                     {
@@ -96,10 +104,10 @@ namespace CBDownloader.ViewModels
 
             try
             {
-                var result = await _mediaService.DownloadAsync(VideoUrl, IsVideo, true, progress, _cts.Token, PlaylistName);
+                var result = await _mediaService.DownloadAsync(VideoUrl, IsVideo, true, progress, cts.Token, PlaylistName);
                 _isPostProcessing = false;
                 
-                if (_cts.IsCancellationRequested)
+                if (cts.IsCancellationRequested)
                 {
                     DownloadStatus = "Cancelled.";
                     return;
@@ -127,7 +135,7 @@ namespace CBDownloader.ViewModels
             catch (Exception ex)
             {
                 _isPostProcessing = false;
-                if (_cts != null && _cts.IsCancellationRequested)
+                if (cts.IsCancellationRequested)
                 {
                     DownloadStatus = "Cancelled.";
                 }
@@ -139,7 +147,10 @@ namespace CBDownloader.ViewModels
             finally
             {
                 _isPostProcessing = false;
-                IsDownloading = false;
+                if (_cts == cts)
+                {
+                    IsDownloading = false;
+                }
             }
         }
 
@@ -172,18 +183,28 @@ namespace CBDownloader.ViewModels
         [RelayCommand]
         private void OpenFolder()
         {
-            if (!string.IsNullOrEmpty(FilePath))
+            if (string.IsNullOrEmpty(FilePath)) return;
+
+            if (System.IO.File.Exists(FilePath))
             {
-                var folder = System.IO.Path.GetDirectoryName(FilePath);
-                if (!string.IsNullOrEmpty(folder) && System.IO.Directory.Exists(folder))
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = "explorer.exe",
-                        Arguments = $"\"{folder}\"",
-                        UseShellExecute = true
-                    });
-                }
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{FilePath}\"",
+                    UseShellExecute = true
+                });
+                return;
+            }
+
+            var folder = System.IO.Path.GetDirectoryName(FilePath);
+            if (!string.IsNullOrEmpty(folder) && System.IO.Directory.Exists(folder))
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"\"{folder}\"",
+                    UseShellExecute = true
+                });
             }
         }
     }

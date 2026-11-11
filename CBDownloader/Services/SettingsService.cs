@@ -39,6 +39,7 @@ namespace CBDownloader.Services
     public static class SettingsService
     {
         private static readonly string SettingsFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CBDownloader", "appsettings.json");
+        private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
         private static Settings? _current;
 
         public static Settings Current
@@ -80,7 +81,7 @@ namespace CBDownloader.Services
                 {
                     Directory.CreateDirectory(dir);
                 }
-                var json = JsonSerializer.Serialize(Current, new JsonSerializerOptions { WriteIndented = true });
+                var json = JsonSerializer.Serialize(Current, SerializerOptions);
                 File.WriteAllText(SettingsFile, json);
             }
             catch { }

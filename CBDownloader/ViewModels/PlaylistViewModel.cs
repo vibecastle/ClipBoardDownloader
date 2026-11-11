@@ -32,6 +32,8 @@ namespace CBDownloader.ViewModels
         [ObservableProperty]
         private string _loadingStatus = "Fetching playlist information...";
 
+        private bool _suppressSelectionChanged;
+
         public ObservableCollection<PlaylistEntryViewModel> Entries { get; } = new();
 
         public int SelectedCount => Entries.Count(e => e.IsSelected);
@@ -44,17 +46,33 @@ namespace CBDownloader.ViewModels
         [RelayCommand]
         private void SelectAll()
         {
-            foreach (var entry in Entries)
-                entry.IsSelected = true;
-            OnPropertyChanged(nameof(SelectedCount));
+            _suppressSelectionChanged = true;
+            try
+            {
+                foreach (var entry in Entries)
+                    entry.IsSelected = true;
+            }
+            finally
+            {
+                _suppressSelectionChanged = false;
+                OnPropertyChanged(nameof(SelectedCount));
+            }
         }
 
         [RelayCommand]
         private void DeselectAll()
         {
-            foreach (var entry in Entries)
-                entry.IsSelected = false;
-            OnPropertyChanged(nameof(SelectedCount));
+            _suppressSelectionChanged = true;
+            try
+            {
+                foreach (var entry in Entries)
+                    entry.IsSelected = false;
+            }
+            finally
+            {
+                _suppressSelectionChanged = false;
+                OnPropertyChanged(nameof(SelectedCount));
+            }
         }
 
         [RelayCommand]
@@ -86,7 +104,13 @@ namespace CBDownloader.ViewModels
                     ThumbnailUrl = item.ThumbnailUrl,
                     Duration = item.Duration
                 };
-                entry.PropertyChanged += (_, _) => OnPropertyChanged(nameof(SelectedCount));
+                entry.PropertyChanged += (_, e) =>
+                {
+                    if (!_suppressSelectionChanged && e.PropertyName == nameof(PlaylistEntryViewModel.IsSelected))
+                    {
+                        OnPropertyChanged(nameof(SelectedCount));
+                    }
+                };
                 Entries.Add(entry);
             }
 

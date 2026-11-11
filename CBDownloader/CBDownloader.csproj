@@ -9,9 +9,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
-    <Version>1.4.2.0</Version>
-    <FileVersion>1.4.2.0</FileVersion>
-    <AssemblyVersion>1.4.2.0</AssemblyVersion>
+    <Version>1.5.0.0</Version>
+    <FileVersion>1.5.0.0</FileVersion>
+    <AssemblyVersion>1.5.0.0</AssemblyVersion>
     <NoWarn>NU1904</NoWarn>
   </PropertyGroup>
 

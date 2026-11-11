@@ -18,13 +18,15 @@ namespace CBDownloader
         private MainViewModel? _mainViewModel;
         private Forms.NotifyIcon? _notifyIcon;
         private EventWaitHandle? _showEvent;
-        private ExtensionServerService _extensionServer = new();
+        private bool _isExiting;
+        private readonly MediaDownloadService _mediaService = new();
+        private readonly ExtensionServerService _extensionServer = new();
 
         protected override void OnStartup(StartupEventArgs e)
         {
             try 
             {
-                var existingEvent = EventWaitHandle.OpenExisting("CBDownloaderShowEvent");
+                using var existingEvent = EventWaitHandle.OpenExisting("CBDownloaderShowEvent");
                 existingEvent.Set();
                 Environment.Exit(0);
                 return;
@@ -34,23 +36,20 @@ namespace CBDownloader
                 _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, "CBDownloaderShowEvent");
                 Task.Run(() =>
                 {
-                    while (true)
+                    while (!_isExiting)
                     {
-                        _showEvent.WaitOne();
-                        Dispatcher.Invoke(() =>
+                        try
                         {
-                            _mainWindow?.Show();
-                            if (_mainWindow?.WindowState == WindowState.Minimized)
-                                _mainWindow.WindowState = WindowState.Normal;
-                            
-                            // Force foreground
-                            if (_mainWindow != null)
+                            if (_showEvent.WaitOne())
                             {
-                                _mainWindow.Topmost = true;
-                                _mainWindow.Topmost = SettingsService.Current.AlwaysOnTop;
-                                _mainWindow.Activate();
+                                if (_isExiting) break;
+                                Dispatcher.InvokeAsync(BringMainWindowToFront);
                             }
-                        });
+                        }
+                        catch
+                        {
+                            break;
+                        }
                     }
                 });
             }
@@ -59,7 +58,7 @@ namespace CBDownloader
 
             this.ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
-            _mainViewModel = new MainViewModel();
+            _mainViewModel = new MainViewModel(_mediaService);
             _mainWindow = new MainWindow
             {
                 DataContext = _mainViewModel,
@@ -69,39 +68,59 @@ namespace CBDownloader
             ThemeManager.Initialize();
 
             SetupNotifyIcon();
-            
+
+            _extensionServer.DownloadRequested += (s, url) => ShowClipboardToast(url);
             _extensionServer.Start();
 
             _clipboardMonitor = new ClipboardMonitorService();
-            _clipboardMonitor.ClipboardUrlCopied += async (s, url) =>
-            {
-                if (_mainViewModel != null && _mainViewModel.IsBusy)
-                {
-                    return;
-                }
-
-                await System.Windows.Application.Current.Dispatcher.InvokeAsync(async () =>
-                {
-                    if (_mainWindow?.WindowState == WindowState.Minimized)
-                    {
-                        _mainWindow.WindowState = WindowState.Normal;
-                    }
-                    _mainWindow?.Show();
-                    
-                    // Force foreground
-                    if (_mainWindow != null)
-                    {
-                        _mainWindow.Topmost = true;
-                        _mainWindow.Topmost = SettingsService.Current.AlwaysOnTop;
-                        _mainWindow.Activate();
-                    }
-                    
-                    if (_mainViewModel != null) await _mainViewModel.InitializeAndFetchMetadata(url);
-                });
-            };
+            _clipboardMonitor.ClipboardUrlCopied += (s, url) => ShowClipboardToast(url);
 
             var hwnd = new System.Windows.Interop.WindowInteropHelper(_mainWindow).EnsureHandle();
             _clipboardMonitor.StartMonitoring(_mainWindow);
+        }
+
+        public void BringMainWindowToFront()
+        {
+            if (_mainWindow == null) return;
+
+            if (_mainWindow.WindowState == WindowState.Minimized)
+            {
+                _mainWindow.WindowState = WindowState.Normal;
+            }
+            _mainWindow.Show();
+
+            // Force foreground
+            _mainWindow.Topmost = true;
+            _mainWindow.Topmost = SettingsService.Current.AlwaysOnTop;
+            _mainWindow.Activate();
+        }
+
+        public void BringMainWindowToFrontWithUrl(string url)
+        {
+            BringMainWindowToFront();
+            if (_mainViewModel != null)
+            {
+                _ = _mainViewModel.InitializeAndFetchMetadata(url);
+            }
+        }
+
+        private DownloadToastWindow? _currentToast;
+        public void ShowClipboardToast(string url)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (_currentToast != null)
+                {
+                    _currentToast.SetUrlAndFetch(url);
+                    _currentToast.PositionInBottomRight();
+                    _currentToast.Show();
+                    return;
+                }
+
+                _currentToast = new DownloadToastWindow(_mediaService, url);
+                _currentToast.Closed += (s, e) => _currentToast = null;
+                _currentToast.Show();
+            });
         }
 
         private void SetupNotifyIcon()
@@ -110,14 +129,13 @@ namespace CBDownloader
             
             try
             {
-                var iconUri = new Uri("pack://application:,,,/Assets/icon.png");
+                var iconUri = new Uri("pack://application:,,,/Assets/icon.ico");
                 var streamInfo = System.Windows.Application.GetResourceStream(iconUri);
                 if (streamInfo != null)
                 {
-                    using (var bmp = new Bitmap(streamInfo.Stream))
+                    using (streamInfo.Stream)
                     {
-                        var hIcon = bmp.GetHicon();
-                        _notifyIcon.Icon = System.Drawing.Icon.FromHandle(hIcon);
+                        _notifyIcon.Icon = new System.Drawing.Icon(streamInfo.Stream);
                     }
                 }
                 else
@@ -132,22 +150,11 @@ namespace CBDownloader
 
             _notifyIcon.Visible = true;
             _notifyIcon.Text = "CBDownloader";
-            _notifyIcon.DoubleClick += (s, args) =>
-            {
-                _mainWindow?.Show();
-                _mainWindow?.Activate();
-            };
+            _notifyIcon.DoubleClick += (s, args) => BringMainWindowToFront();
 
             var contextMenu = new Forms.ContextMenuStrip();
-            contextMenu.Items.Add("Show", null, (s, args) =>
-            {
-                _mainWindow?.Show();
-                _mainWindow?.Activate();
-            });
-            contextMenu.Items.Add("Settings", null, (s, args) =>
-            {
-                ShowSettings();
-            });
+            contextMenu.Items.Add("Show", null, (s, args) => BringMainWindowToFront());
+            contextMenu.Items.Add("Settings", null, (s, args) => ShowSettings());
             contextMenu.Items.Add("Exit", null, (s, args) =>
             {
                 _notifyIcon.Visible = false;
@@ -191,6 +198,8 @@ namespace CBDownloader
         {
             Dispatcher.Invoke(() =>
             {
+                using var playlistCts = new CancellationTokenSource();
+
                 var vm = new PlaylistViewModel
                 {
                     IsVideo = isVideo,
@@ -205,21 +214,31 @@ namespace CBDownloader
                     Title = isVideo ? "Queue Playlist Videos" : "Queue Playlist Audios"
                 };
 
+                window.Closed += (s, e) => playlistCts.Cancel();
                 vm.CloseAction = () => Dispatcher.Invoke(() => window.Close());
 
                 _ = Task.Run(async () =>
                 {
                     try
                     {
-                        var result = await mediaService.GetPlaylistMetadataAsync(url);
-                        Dispatcher.Invoke(() => vm.LoadEntries(result.PlaylistTitle, result.Items));
+                        var result = await mediaService.GetPlaylistMetadataAsync(url, playlistCts.Token);
+                        if (!playlistCts.Token.IsCancellationRequested)
+                        {
+                            Dispatcher.Invoke(() => vm.LoadEntries(result.PlaylistTitle, result.Items));
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
                     }
                     catch (Exception ex)
                     {
-                        Dispatcher.Invoke(() =>
+                        if (!playlistCts.Token.IsCancellationRequested)
                         {
-                            vm.LoadingStatus = $"Error loading playlist: {ex.Message}";
-                        });
+                            Dispatcher.Invoke(() =>
+                            {
+                                vm.LoadingStatus = $"Error loading playlist: {ex.Message}";
+                            });
+                        }
                     }
                 });
 
@@ -236,6 +255,24 @@ namespace CBDownloader
 
         protected override void OnExit(ExitEventArgs e)
         {
+            _isExiting = true;
+            try
+            {
+                _showEvent?.Set();
+                _showEvent?.Dispose();
+            }
+            catch { }
+
+            if (_currentToast != null)
+            {
+                try
+                {
+                    _currentToast.Close();
+                }
+                catch { }
+                _currentToast = null;
+            }
+
             _extensionServer?.Stop();
             _clipboardMonitor?.StopMonitoring();
             if (_notifyIcon != null)

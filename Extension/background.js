@@ -10,7 +10,21 @@ const SUPPORTED_DOMAINS = [
   "reddit.com",
   "twitch.tv",
   "dailymotion.com",
-  "soundcloud.com"
+  "soundcloud.com",
+  "bilibili.com",
+  "nicovideo.jp",
+  "rumble.com",
+  "bandcamp.com",
+  "streamable.com",
+  "bitchute.com",
+  "odysee.com",
+  "pinterest.com",
+  "tumblr.com",
+  "linkedin.com",
+  "ted.com",
+  "mixcloud.com",
+  "vk.com",
+  "ok.ru"
 ];
 
 function isSupportedUrl(url) {
@@ -26,16 +40,18 @@ function isSupportedUrl(url) {
 async function sendToApp(url) {
   try {
     const cookies = await new Promise((resolve) => {
-      chrome.cookies.getAll({ url: url }, (res) => resolve(res));
+      chrome.cookies.getAll({ url: url }, (res) => resolve(res || []));
     });
 
-    await fetch(SERVER_URL, {
+    const response = await fetch(SERVER_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url: url, cookies: cookies })
     });
+    return response.ok;
   } catch (error) {
     console.error("CBDownloader Sync Error:", error);
+    return false;
   }
 }
 
@@ -57,7 +73,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 async function syncCookies(url) {
   try {
     const cookies = await new Promise((resolve) => {
-      chrome.cookies.getAll({ url: url }, (res) => resolve(res));
+      chrome.cookies.getAll({ url: url }, (res) => resolve(res || []));
     });
 
     if (cookies && cookies.length > 0) {
@@ -75,8 +91,8 @@ async function syncCookies(url) {
 // Listener for messages from content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "download" && request.url) {
-    sendToApp(request.url).then(() => {
-      sendResponse({ status: "success" });
+    sendToApp(request.url).then((ok) => {
+      sendResponse({ status: ok ? "success" : "error" });
     });
     return true; // indicates asynchronous response
   }

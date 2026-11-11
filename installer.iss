@@ -1,6 +1,6 @@
 [Setup]
 AppName=CBDownloader
-AppVersion=1.4.2
+AppVersion=1.5.0
 DefaultDirName={autopf}\CBDownloader
 DefaultGroupName=CBDownloader
 UninstallDisplayIcon={app}\CBDownloader.exe
@@ -11,8 +11,8 @@ OutputDir=Output
 OutputBaseFilename=CBDownloaderInstaller
 ArchitecturesInstallIn64BitMode=x64
 ArchitecturesAllowed=x64
-VersionInfoVersion=1.4.2.0
-VersionInfoDescription=CBDownloader Installer
+VersionInfoVersion=1.5.0.0
+VersionInfoDescription=CBDownloader - Standalone Video and Audio Downloader
 VersionInfoCompany=ClipBoardDownloader
 VersionInfoCopyright=Copyright (C) 2026
 VersionInfoProductName=CBDownloader
@@ -23,7 +23,6 @@ Name: "startup"; Description: "Start CBDownloader with Windows (Recommended)"; G
 
 [Files]
 Source: "CBDownloader\bin\Release\net8.0-windows\win-x64\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "Extension\*"; DestDir: "{app}\Extension"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\CBDownloader"; Filename: "{app}\CBDownloader.exe"

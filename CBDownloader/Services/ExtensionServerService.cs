@@ -1,33 +1,53 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using CBDownloader.ViewModels;
+using CBDownloader.Utils;
 
 namespace CBDownloader.Services
 {
     public class ExtensionServerService
     {
+        private static readonly JsonSerializerOptions JsonOptions = new()
+        {
+            PropertyNameCaseInsensitive = true
+        };
+
+        private readonly object _cookieLock = new();
         private HttpListener _listener = new();
         private CancellationTokenSource _cts = new();
 
+        public event EventHandler<string>? DownloadRequested;
+
         public void Start()
         {
-            _cts = new CancellationTokenSource();
-            _listener = new HttpListener();
-            _listener.Prefixes.Add("http://127.0.0.1:44321/api/download/");
-            _listener.Start();
+            try
+            {
+                _cts = new CancellationTokenSource();
+                _listener = new HttpListener();
+                _listener.Prefixes.Add("http://127.0.0.1:44321/api/download/");
+                _listener.Start();
 
-            Task.Run(() => ListenAsync(_cts.Token));
+                Task.Run(() => ListenAsync(_cts.Token));
+            }
+            catch (Exception)
+            {
+                // Port already in use or listener failed to start
+            }
         }
 
         public void Stop()
         {
-            _cts?.Cancel();
-            _listener?.Stop();
+            try
+            {
+                _cts?.Cancel();
+                _listener?.Stop();
+            }
+            catch { }
         }
 
         private async Task ListenAsync(CancellationToken token)
@@ -37,11 +57,11 @@ namespace CBDownloader.Services
                 try
                 {
                     var context = await _listener.GetContextAsync();
-                    
+                    AddCorsHeaders(context.Response);
+
                     // Handle preflight requests (CORS) from the browser extension
                     if (context.Request.HttpMethod == "OPTIONS")
                     {
-                        AddCorsHeaders(context.Response);
                         context.Response.StatusCode = 200;
                         context.Response.Close();
                         continue;
@@ -54,28 +74,32 @@ namespace CBDownloader.Services
 
                         try
                         {
-                            var payload = JsonSerializer.Deserialize<ExtensionPayload>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                            var payload = JsonSerializer.Deserialize<ExtensionPayload>(body, JsonOptions);
                             if (payload != null && !string.IsNullOrEmpty(payload.Url))
                             {
-                                // Save cookies to cookies.txt
                                 if (payload.Cookies != null && payload.Cookies.Length > 0)
                                 {
                                     SaveCookies(payload.Cookies);
                                 }
 
-                                AddCorsHeaders(context.Response);
+                                bool isBackgroundSync = context.Request.Url?.AbsolutePath.EndsWith("/sync", StringComparison.OrdinalIgnoreCase) == true;
+                                if (!isBackgroundSync && RegexHelper.IsValidSupportedUrl(payload.Url))
+                                {
+                                    DownloadRequested?.Invoke(this, payload.Url);
+                                }
+
                                 context.Response.StatusCode = 200;
+                                context.Response.ContentType = "application/json";
                                 using var writer = new StreamWriter(context.Response.OutputStream);
-                                writer.Write("{\"status\":\"success\"}");
+                                await writer.WriteAsync("{\"status\":\"success\"}");
                             }
                             else
                             {
                                 context.Response.StatusCode = 400; // Bad Request
                             }
                         }
-                        catch (Exception ex)
+                        catch (Exception)
                         {
-                            Console.WriteLine("Error parsing payload: " + ex.Message);
                             context.Response.StatusCode = 500;
                         }
                     }
@@ -90,6 +114,10 @@ namespace CBDownloader.Services
                 {
                     // Listener stopped
                 }
+                catch (ObjectDisposedException)
+                {
+                    // Listener disposed
+                }
                 catch (Exception)
                 {
                     // Other errors
@@ -97,11 +125,11 @@ namespace CBDownloader.Services
             }
         }
 
-        private void AddCorsHeaders(HttpListenerResponse response)
+        private static void AddCorsHeaders(HttpListenerResponse response)
         {
-            response.AppendHeader("Access-Control-Allow-Origin", "*");
-            response.AppendHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-            response.AppendHeader("Access-Control-Allow-Headers", "Content-Type");
+            response.Headers["Access-Control-Allow-Origin"] = "*";
+            response.Headers["Access-Control-Allow-Methods"] = "POST, OPTIONS";
+            response.Headers["Access-Control-Allow-Headers"] = "Content-Type";
         }
 
         private void SaveCookies(ExtensionCookie[] cookies)
@@ -113,28 +141,72 @@ namespace CBDownloader.Services
             }
 
             var txtPath = Path.Combine(binFolder, "cookies.txt");
-            var sb = new StringBuilder();
-            sb.AppendLine("# Netscape HTTP Cookie File");
-            sb.AppendLine("# This file was generated by CBDownloader Extension");
-            sb.AppendLine();
+            var tempPath = Path.Combine(binFolder, "cookies.txt.tmp");
 
-            foreach (var cookie in cookies)
+            lock (_cookieLock)
             {
-                string domain = cookie.Domain.StartsWith(".") ? cookie.Domain : "." + cookie.Domain;
-                string flag = domain.StartsWith(".") ? "TRUE" : "FALSE";
-                string path = string.IsNullOrEmpty(cookie.Path) ? "/" : cookie.Path;
-                string secure = cookie.Secure ? "TRUE" : "FALSE";
+                var cookieMap = new Dictionary<string, string>(StringComparer.Ordinal);
+                long nowUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-                long expiry = cookie.ExpirationDate > 0 ? (long)cookie.ExpirationDate : DateTimeOffset.UtcNow.AddYears(1).ToUnixTimeSeconds();
+                if (File.Exists(txtPath))
+                {
+                    try
+                    {
+                        foreach (var line in File.ReadLines(txtPath))
+                        {
+                            if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
+                                continue;
 
-                sb.AppendLine($"{domain}\t{flag}\t{path}\t{secure}\t{expiry}\t{cookie.Name}\t{cookie.Value}");
+                            var parts = line.Split('\t');
+                            if (parts.Length >= 7)
+                            {
+                                if (long.TryParse(parts[4], out long exp) && exp > 0 && exp < nowUnix)
+                                    continue; // Skip expired cookies
+
+                                string key = $"{parts[0]}\t{parts[2]}\t{parts[5]}";
+                                cookieMap[key] = line;
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                long defaultExpiry = DateTimeOffset.UtcNow.AddYears(1).ToUnixTimeSeconds();
+
+                foreach (var cookie in cookies)
+                {
+                    if (string.IsNullOrWhiteSpace(cookie.Domain) || string.IsNullOrWhiteSpace(cookie.Name))
+                        continue;
+
+                    string domain = cookie.Domain.StartsWith('.') ? cookie.Domain : "." + cookie.Domain;
+                    string flag = "TRUE";
+                    string path = string.IsNullOrEmpty(cookie.Path) ? "/" : cookie.Path;
+                    string secure = cookie.Secure ? "TRUE" : "FALSE";
+                    long expiry = cookie.ExpirationDate > 0 ? (long)cookie.ExpirationDate : defaultExpiry;
+
+                    string key = $"{domain}\t{path}\t{cookie.Name}";
+                    cookieMap[key] = $"{domain}\t{flag}\t{path}\t{secure}\t{expiry}\t{cookie.Name}\t{cookie.Value}";
+                }
+
+                var sb = new StringBuilder();
+                sb.AppendLine("# Netscape HTTP Cookie File");
+                sb.AppendLine("# This file was generated by CBDownloader Extension");
+                sb.AppendLine();
+
+                foreach (var entry in cookieMap.Values)
+                {
+                    sb.AppendLine(entry);
+                }
+
+                File.WriteAllText(tempPath, sb.ToString());
+                File.Move(tempPath, txtPath, overwrite: true);
             }
 
-            File.WriteAllText(txtPath, sb.ToString());
-            
-            // Force settings update so MediaDownloadService prioritizes the file
-            SettingsService.Current.UseBrowserCookies = true;
-            SettingsService.Save();
+            if (!SettingsService.Current.UseBrowserCookies)
+            {
+                SettingsService.Current.UseBrowserCookies = true;
+                SettingsService.Save();
+            }
         }
 
         public class ExtensionPayload

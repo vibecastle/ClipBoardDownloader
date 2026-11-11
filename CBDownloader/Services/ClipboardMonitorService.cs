@@ -20,6 +20,7 @@ namespace CBDownloader.Services
 
         private const int WM_CLIPBOARDUPDATE = 0x031D;
         private IntPtr _windowHandle;
+        private HwndSource? _hwndSource;
         
         public event EventHandler<string>? ClipboardUrlCopied;
         private uint _lastSequenceNumber = 0;
@@ -32,6 +33,7 @@ namespace CBDownloader.Services
             if (source != null)
             {
                 _windowHandle = hwnd;
+                _hwndSource = source;
                 source.AddHook(HwndHook);
                 AddClipboardFormatListener(_windowHandle);
             }
@@ -39,9 +41,15 @@ namespace CBDownloader.Services
 
         public void StopMonitoring()
         {
+            if (_hwndSource != null)
+            {
+                _hwndSource.RemoveHook(HwndHook);
+                _hwndSource = null;
+            }
             if (_windowHandle != IntPtr.Zero)
             {
                 RemoveClipboardFormatListener(_windowHandle);
+                _windowHandle = IntPtr.Zero;
             }
         }
 
@@ -60,12 +68,12 @@ namespace CBDownloader.Services
                     if (System.Windows.Clipboard.ContainsText())
                     {
                         var text = System.Windows.Clipboard.GetText();
-                        if (CBDownloader.Utils.RegexHelper.IsValidSupportedUrl(text))
+                        if (!string.IsNullOrWhiteSpace(text) && text.Length <= 2048 && CBDownloader.Utils.RegexHelper.IsValidSupportedUrl(text))
                         {
-                            if ((DateTime.Now - _lastFiredTime).TotalMilliseconds < 500)
+                            if ((DateTime.UtcNow - _lastFiredTime).TotalMilliseconds < 500)
                                 return IntPtr.Zero;
                                 
-                            _lastFiredTime = DateTime.Now;
+                            _lastFiredTime = DateTime.UtcNow;
                             ClipboardUrlCopied?.Invoke(this, text);
                         }
                     }

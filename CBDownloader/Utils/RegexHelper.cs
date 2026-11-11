@@ -5,34 +5,6 @@ namespace CBDownloader.Utils
 {
     public static class RegexHelper
     {
-        private static readonly string[] SupportedDomains = new[]
-        {
-            "youtube.com", "youtu.be",
-            "instagram.com",
-            "tiktok.com",
-            "twitter.com", "x.com",
-            "vimeo.com",
-            "facebook.com", "fb.watch",
-            "reddit.com",
-            "twitch.tv",
-            "dailymotion.com",
-            "soundcloud.com",
-            "bilibili.com",
-            "nicovideo.jp",
-            "rumble.com",
-            "bandcamp.com",
-            "streamable.com",
-            "bitchute.com",
-            "odysee.com",
-            "pinterest.com",
-            "tumblr.com",
-            "linkedin.com",
-            "ted.com",
-            "mixcloud.com",
-            "vk.com",
-            "ok.ru"
-        };
-
         private static readonly Regex YoutubePlaylistUrlRegex = new Regex(
             @"(?:https?:\/\/)?(?:www\.)?youtube\.com\/.*[?&]list=([^&\s]+)",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -243,9 +215,16 @@ namespace CBDownloader.Utils
             return YoutubePlaylistUrlRegex.IsMatch(url);
         }
 
+        public static bool IsYoutubePurePlaylistUrl(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return false;
+            return YoutubePurePlaylistUrlRegex.IsMatch(url);
+        }
+
         public static string NormalizeUrl(string url)
         {
-            url = EnsureProtocol(url);
+            if (string.IsNullOrWhiteSpace(url)) return string.Empty;
+            url = EnsureProtocol(url.Trim());
             url = NormalizeYoutubeShorts(url);
             return url;
         }

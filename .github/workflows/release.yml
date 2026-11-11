@@ -3,7 +3,7 @@ name: Build and Release Installer
 on:
   push:
     tags:
-      - 'v*' # Trigger on version tags e.g., v1.3.0
+      - 'v*' # Trigger on version tags e.g., v1.5.0
   workflow_dispatch: # Allow manual triggering from the GitHub Actions UI
 
 jobs:
@@ -21,14 +21,11 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Publish Application
-        run: dotnet publish CBDownloader\CBDownloader.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+      - name: Publish Application (Self-Contained)
+        run: dotnet publish CBDownloader\CBDownloader.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 
       - name: Compile Inno Setup Installer
         run: iscc installer.iss # Windows runners have Inno Setup pre-installed in the PATH
-
-      - name: Zip Extension
-        run: Compress-Archive -Path Extension\* -DestinationPath Output/CBDownloader_Extension.zip
 
       - name: Create Release and Upload Output
         uses: softprops/action-gh-release@v2
@@ -36,7 +33,6 @@ jobs:
         with:
           files: |
             Output/CBDownloaderInstaller.exe
-            Output/CBDownloader_Extension.zip
           name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
