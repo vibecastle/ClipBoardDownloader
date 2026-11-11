@@ -127,12 +127,12 @@ namespace CBDownloader.Views
             }
         }
 
-        private void OnMouseEnterToast(object sender, MouseEventArgs e)
+        private void OnMouseEnterToast(object sender, System.Windows.Input.MouseEventArgs e)
         {
             _isPaused = true;
         }
 
-        private void OnMouseLeaveToast(object sender, MouseEventArgs e)
+        private void OnMouseLeaveToast(object sender, System.Windows.Input.MouseEventArgs e)
         {
             _isPaused = false;
         }
@@ -158,7 +158,7 @@ namespace CBDownloader.Views
             CloseToast();
         }
 
-        private void OnOpenAppClick(object sender, MouseButtonEventArgs e)
+        private void OnOpenAppClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             _timer.Stop();
             _metadataCts?.Cancel();
