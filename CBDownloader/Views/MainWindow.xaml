@@ -101,8 +101,21 @@
                                             <RowDefinition Height="Auto"/>
                                             <RowDefinition Height="Auto"/>
                                         </Grid.RowDefinitions>
-                                        <TextBlock Grid.Row="0" Text="{Binding VideoTitle}" FontWeight="SemiBold" FontSize="12"
-                                                   TextTrimming="CharacterEllipsis" Foreground="{DynamicResource WindowForegroundBrush}"/>
+                                        <Grid Grid.Row="0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Background="{DynamicResource SecondaryButtonBackgroundBrush}"
+                                                    BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1"
+                                                    CornerRadius="4" Padding="5,1" Margin="0,0,6,0" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding FormatLabel}" FontSize="9" FontWeight="Bold"
+                                                           Foreground="{DynamicResource AccentBrush}"/>
+                                            </Border>
+                                            <TextBlock Grid.Column="1" Text="{Binding VideoTitle}" FontWeight="SemiBold" FontSize="12"
+                                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource WindowForegroundBrush}"/>
+                                        </Grid>
                                         <ProgressBar Grid.Row="1" Value="{Binding DownloadProgress}" Maximum="100" Height="5" 
                                                      Margin="0,5,0,3"/>
                                         <TextBlock Grid.Row="2" Text="{Binding DownloadStatus}" FontSize="11" 
@@ -135,14 +148,9 @@
 
         <!-- Bottom Actions Footer -->
         <Grid Grid.Row="2">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <Button Grid.Column="0" Content="Hide to Background" Height="36" Margin="0,0,8,0" 
-                    Command="{Binding ExitCommand}"/>
-            <Button Grid.Column="1" Content="🧹 Clear List" ToolTip="Clear Completed/Cancelled Downloads" 
-                    Height="36" Padding="16,0" Command="{Binding ClearCompletedCommand}"/>
+            <Button Content="🧹 Clear List" ToolTip="Clear Completed/Cancelled Downloads" 
+                    Height="36" Padding="16,0" HorizontalAlignment="Stretch"
+                    Command="{Binding ClearCompletedCommand}"/>
         </Grid>
     </Grid>
 </Window>

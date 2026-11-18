@@ -7,7 +7,7 @@
     <Color x:Key="SecondaryForegroundColor">#94A3B8</Color>
     <Color x:Key="BorderColor">#27272A</Color>
     <Color x:Key="ProgressBarBackgroundColor">#1E1E24</Color>
-    <Color x:Key="ThumbnailOverlayColor">#E60F0F10</Color>
+    <Color x:Key="ThumbnailOverlayColor">#780F0F10</Color>
     <Color x:Key="ItemBackgroundColor">#17171A</Color>
     
     <!-- Yellow / Gold Accent Colors -->

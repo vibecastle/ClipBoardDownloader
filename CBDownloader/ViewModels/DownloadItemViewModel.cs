@@ -13,6 +13,8 @@ namespace CBDownloader.ViewModels
     {
         private readonly MediaDownloadService _mediaService;
         private CancellationTokenSource? _cts;
+        private CancellationTokenSource? _metadataCts;
+        private bool _isTitleFromFilename;
 
         [ObservableProperty]
         private string _videoTitle = string.Empty;
@@ -38,6 +40,7 @@ namespace CBDownloader.ViewModels
         private string _videoUrl = string.Empty;
 
         public bool IsVideo { get; set; }
+        public string FormatLabel => IsVideo ? "MP4" : "MP3";
         public string? PlaylistName { get; set; }
         
         public string? FilePath { get; private set; }
@@ -51,6 +54,14 @@ namespace CBDownloader.ViewModels
 
         private bool _isPostProcessing;
 
+        private static bool IsPlaceholderTitle(string? title) =>
+            string.IsNullOrWhiteSpace(title) ||
+            title == "Fetching title..." ||
+            title == "Media Download" ||
+            title == "Video Download" ||
+            title == "Audio Download" ||
+            title == "Ready to download";
+
         public async Task StartDownloadAsync()
         {
             _cts?.Cancel();
@@ -58,18 +69,31 @@ namespace CBDownloader.ViewModels
             var cts = new CancellationTokenSource();
             _cts = cts;
 
-            if (string.IsNullOrWhiteSpace(VideoTitle) || VideoTitle == "Fetching title..." || VideoTitle == "Media Download" || VideoTitle == "Video Download" || VideoTitle == "Audio Download" || VideoTitle == "Ready to download")
+            if (IsPlaceholderTitle(VideoTitle) || string.IsNullOrWhiteSpace(VideoThumbnailUrl))
             {
+                _metadataCts?.Cancel();
+                _metadataCts?.Dispose();
+                var metaCts = new CancellationTokenSource();
+                _metadataCts = metaCts;
+
                 _ = Task.Run(async () =>
                 {
                     try
                     {
-                        var meta = await _mediaService.GetFastMetadataAsync(VideoUrl, cts.Token);
-                        if (!string.IsNullOrWhiteSpace(meta.Title))
+                        var meta = await _mediaService.GetFastMetadataAsync(VideoUrl, metaCts.Token);
+                        if (metaCts.IsCancellationRequested) return;
+
+                        if (!string.IsNullOrWhiteSpace(meta.Title) || !string.IsNullOrWhiteSpace(meta.ThumbnailUrl))
                         {
-                            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                            System.Windows.Application.Current?.Dispatcher.Invoke(() =>
                             {
-                                VideoTitle = meta.Title;
+                                if (metaCts.IsCancellationRequested) return;
+
+                                if (!string.IsNullOrWhiteSpace(meta.Title) && (IsPlaceholderTitle(VideoTitle) || _isTitleFromFilename))
+                                {
+                                    VideoTitle = meta.Title;
+                                    _isTitleFromFilename = false;
+                                }
                                 if (!string.IsNullOrWhiteSpace(meta.ThumbnailUrl) && string.IsNullOrWhiteSpace(VideoThumbnailUrl))
                                 {
                                     VideoThumbnailUrl = meta.ThumbnailUrl;
@@ -149,10 +173,10 @@ namespace CBDownloader.ViewModels
                         try
                         {
                             var actualName = Path.GetFileNameWithoutExtension(result.Data);
-                            if (!string.IsNullOrWhiteSpace(actualName) &&
-                                (string.IsNullOrWhiteSpace(VideoTitle) || VideoTitle == "Fetching title..." || VideoTitle == "Media Download" || VideoTitle == "Video Download" || VideoTitle == "Audio Download" || VideoTitle == "Ready to download"))
+                            if (!string.IsNullOrWhiteSpace(actualName) && IsPlaceholderTitle(VideoTitle))
                             {
                                 VideoTitle = actualName;
+                                _isTitleFromFilename = true;
                             }
                         }
                         catch { }
@@ -198,6 +222,7 @@ namespace CBDownloader.ViewModels
             if (IsDownloading)
             {
                 _cts?.Cancel();
+                _metadataCts?.Cancel();
                 DownloadStatus = "Cancelled.";
                 IsDownloading = false;
                 DownloadProgress = 0;
@@ -208,6 +233,7 @@ namespace CBDownloader.ViewModels
         private void RetryVideo()
         {
             IsVideo = true;
+            OnPropertyChanged(nameof(FormatLabel));
             _ = StartDownloadAsync();
         }
 
@@ -215,6 +241,7 @@ namespace CBDownloader.ViewModels
         private void RetryAudio()
         {
             IsVideo = false;
+            OnPropertyChanged(nameof(FormatLabel));
             _ = StartDownloadAsync();
         }
 

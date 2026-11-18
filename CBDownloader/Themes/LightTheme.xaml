@@ -6,7 +6,7 @@
     <Color x:Key="SecondaryForegroundColor">#64748B</Color>
     <Color x:Key="BorderColor">#E2E8F0</Color>
     <Color x:Key="ProgressBarBackgroundColor">#E2E8F0</Color>
-    <Color x:Key="ThumbnailOverlayColor">#E6FFFFFF</Color>
+    <Color x:Key="ThumbnailOverlayColor">#780F0F10</Color>
     <Color x:Key="ItemBackgroundColor">#FFFFFF</Color>
     
     <Color x:Key="AccentColor">#EAB308</Color>
