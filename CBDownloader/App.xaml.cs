@@ -73,6 +73,11 @@ namespace CBDownloader
 
             var hwnd = new System.Windows.Interop.WindowInteropHelper(_mainWindow).EnsureHandle();
             _clipboardMonitor.StartMonitoring(_mainWindow);
+
+            if (Array.Exists(e.Args, a => string.Equals(a, "--show", StringComparison.OrdinalIgnoreCase)))
+            {
+                BringMainWindowToFront();
+            }
         }
 
         public void BringMainWindowToFront()

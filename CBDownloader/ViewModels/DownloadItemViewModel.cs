@@ -39,6 +39,9 @@ namespace CBDownloader.ViewModels
         [ObservableProperty]
         private string _videoUrl = string.Empty;
 
+        [ObservableProperty]
+        private bool _isIndeterminate;
+
         public bool IsVideo { get; set; }
         public string FormatLabel => IsVideo ? "MP4" : "MP3";
         public string? PlaylistName { get; set; }
@@ -107,6 +110,7 @@ namespace CBDownloader.ViewModels
 
             IsDownloading = true;
             IsCompleted = false;
+            IsIndeterminate = false;
             _isPostProcessing = false;
             DownloadStatus = "Starting download...";
             DownloadProgress = 0;
@@ -117,25 +121,17 @@ namespace CBDownloader.ViewModels
             {
                 if (cts.IsCancellationRequested) return;
 
-                if (p.State == DownloadState.Downloading && !_isPostProcessing)
+                if (p.State == DownloadState.Downloading)
                 {
-                    var prc = p.Progress * 100;
-                    if (prc >= 100)
-                    {
-                        _isPostProcessing = true;
-                        DownloadProgress = 99;
-                        DownloadStatus = "Converting media (please wait)... 99.9%";
-                        return;
-                    }
+                    _isPostProcessing = false;
+                    IsIndeterminate = false;
 
+                    var prc = Math.Clamp(p.Progress * 100, 0, 100);
                     long now = Environment.TickCount64;
-                    if (prc - DownloadProgress >= 0.3 || now - lastUiUpdateTick >= 80)
+                    if (prc >= 100 || Math.Abs(prc - DownloadProgress) >= 0.3 || now - lastUiUpdateTick >= 80)
                     {
                         lastUiUpdateTick = now;
-                        if (prc > DownloadProgress)
-                        {
-                            DownloadProgress = prc;
-                        }
+                        DownloadProgress = prc;
                         DownloadStatus = $"Downloading... {DownloadProgress:F1}% ({p.DownloadSpeed})";
                     }
                 }
@@ -144,8 +140,9 @@ namespace CBDownloader.ViewModels
                     if (!_isPostProcessing)
                     {
                         _isPostProcessing = true;
-                        DownloadProgress = 99;
-                        DownloadStatus = "Converting media (please wait)... 99.0%";
+                        IsIndeterminate = true;
+                        DownloadProgress = 100;
+                        DownloadStatus = "Converting media with FFmpeg...";
                     }
                 }
             });
@@ -165,6 +162,7 @@ namespace CBDownloader.ViewModels
                 {
                     FilePath = result.Data;
                     DownloadStatus = "Completed!";
+                    IsIndeterminate = false;
                     DownloadProgress = 100;
                     IsCompleted = true;
 
@@ -212,6 +210,7 @@ namespace CBDownloader.ViewModels
                 if (_cts == cts)
                 {
                     IsDownloading = false;
+                    IsIndeterminate = false;
                 }
             }
         }
@@ -225,6 +224,7 @@ namespace CBDownloader.ViewModels
                 _metadataCts?.Cancel();
                 DownloadStatus = "Cancelled.";
                 IsDownloading = false;
+                IsIndeterminate = false;
                 DownloadProgress = 0;
             }
         }

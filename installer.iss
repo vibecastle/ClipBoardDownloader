@@ -1,6 +1,6 @@
 [Setup]
 AppName=CBDownloader
-AppVersion=1.5.7
+AppVersion=1.5.8
 DefaultDirName={autopf}\CBDownloader
 DefaultGroupName=CBDownloader
 UninstallDisplayIcon={app}\CBDownloader.exe
@@ -11,7 +11,7 @@ OutputDir=Output
 OutputBaseFilename=CBDownloaderInstaller
 ArchitecturesInstallIn64BitMode=x64
 ArchitecturesAllowed=x64
-VersionInfoVersion=1.5.7.0
+VersionInfoVersion=1.5.8.0
 VersionInfoDescription=CBDownloader - Lightweight Video and Audio Downloader
 VersionInfoCompany=ClipBoardDownloader
 VersionInfoCopyright=Copyright (C) 2026
@@ -32,7 +32,7 @@ Name: "{autodesktop}\CBDownloader"; Filename: "{app}\CBDownloader.exe"; Tasks: d
 Root: HKCU; Subkey: "SOFTWARE\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "CBDownloader"; ValueData: """{app}\CBDownloader.exe"""; Tasks: startup; Flags: uninsdeletevalue
 
 [Run]
-Filename: "{app}\CBDownloader.exe"; Description: "{cm:LaunchProgram,CBDownloader}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\CBDownloader.exe"; Parameters: "--show"; Description: "{cm:LaunchProgram,CBDownloader}"; Flags: nowait postinstall
 
 [Code]
 var

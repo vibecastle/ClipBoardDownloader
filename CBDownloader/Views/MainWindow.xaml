@@ -117,7 +117,7 @@
                                                        Foreground="{DynamicResource WindowForegroundBrush}"/>
                                         </Grid>
                                         <ProgressBar Grid.Row="1" Value="{Binding DownloadProgress}" Maximum="100" Height="5" 
-                                                     Margin="0,5,0,3"/>
+                                                     IsIndeterminate="{Binding IsIndeterminate}" Margin="0,5,0,3"/>
                                         <TextBlock Grid.Row="2" Text="{Binding DownloadStatus}" FontSize="11" 
                                                    TextTrimming="CharacterEllipsis" Foreground="{DynamicResource SecondaryForegroundBrush}"/>
                                     </Grid>
