@@ -360,7 +360,7 @@ namespace CBDownloader.Services
             return options;
         }
 
-        public async Task<RunResult<string>> DownloadAsync(string url, bool isVideo, bool accelerate, IProgress<DownloadProgress> progress, CancellationToken ct, string? playlistName = null)
+        public async Task<RunResult<string>> DownloadAsync(string url, bool isVideo, bool accelerate, IProgress<DownloadProgress> progress, CancellationToken ct, string? playlistName = null, IProgress<string>? output = null)
         {
             url = RegexHelper.NormalizeUrl(url);
 
@@ -385,27 +385,28 @@ namespace CBDownloader.Services
             _ytdl.OutputFolder = finalOutputFolder;
 
             var options = CreateDownloadOptions(isVideo, accelerate, finalOutputFolder, includeCookies: false);
-            var result = await RunDownloadWithRetry(url, isVideo, options, progress, ct);
+            var result = await RunDownloadWithRetry(url, isVideo, options, progress, ct, output);
 
             if (!result.Success && File.Exists(_cookiesPath))
             {
+                output?.Report("[cbd] Retrying with cookies...");
                 var cookieOptions = CreateDownloadOptions(isVideo, accelerate, finalOutputFolder, includeCookies: true);
-                result = await RunDownloadWithRetry(url, isVideo, cookieOptions, progress, ct);
+                result = await RunDownloadWithRetry(url, isVideo, cookieOptions, progress, ct, output);
             }
 
             return result;
         }
 
-        private async Task<RunResult<string>> RunDownloadWithRetry(string url, bool isVideo, OptionSet options, IProgress<DownloadProgress> progress, CancellationToken ct)
+        private async Task<RunResult<string>> RunDownloadWithRetry(string url, bool isVideo, OptionSet options, IProgress<DownloadProgress> progress, CancellationToken ct, IProgress<string>? output = null)
         {
             if (isVideo)
             {
                 return await _ytdl.RunVideoDownload(url, format: "bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo+bestaudio/best",
-                    overrideOptions: options, progress: progress, ct: ct);
+                    overrideOptions: options, progress: progress, output: output, ct: ct);
             }
             else
             {
-                return await _ytdl.RunAudioDownload(url, AudioConversionFormat.Mp3, overrideOptions: options, progress: progress, ct: ct);
+                return await _ytdl.RunAudioDownload(url, AudioConversionFormat.Mp3, overrideOptions: options, progress: progress, output: output, ct: ct);
             }
         }
     }

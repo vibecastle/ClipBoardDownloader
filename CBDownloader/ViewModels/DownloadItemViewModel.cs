@@ -116,6 +116,35 @@ namespace CBDownloader.ViewModels
             DownloadProgress = 0;
 
             long lastUiUpdateTick = 0;
+            int streamCount = 0;
+
+            var output = new Progress<string>(line =>
+            {
+                if (cts.IsCancellationRequested || string.IsNullOrWhiteSpace(line)) return;
+
+                var trimmed = line.TrimStart();
+                if (trimmed.StartsWith("[cbd] Retrying", StringComparison.Ordinal))
+                {
+                    streamCount = 0;
+                    _isPostProcessing = false;
+                    IsIndeterminate = false;
+                    DownloadProgress = 0;
+                    DownloadStatus = "Retrying with cookies...";
+                }
+                else if (trimmed.StartsWith("[download] Destination:", StringComparison.Ordinal))
+                {
+                    streamCount++;
+                }
+                else if (trimmed.StartsWith("[download] 100%", StringComparison.Ordinal) ||
+                         (trimmed.StartsWith("[download]", StringComparison.Ordinal) && trimmed.Contains("has already been downloaded", StringComparison.Ordinal)))
+                {
+                    if (!_isPostProcessing && streamCount <= 1)
+                    {
+                        DownloadProgress = 100;
+                        DownloadStatus = "Downloading... 100.0%";
+                    }
+                }
+            });
 
             var progress = new Progress<DownloadProgress>(p =>
             {
@@ -123,15 +152,31 @@ namespace CBDownloader.ViewModels
 
                 if (p.State == DownloadState.Downloading)
                 {
+                    // YoutubeDLSharp fires Progress=0 with empty ETA on non-progress [download] lines
+                    // (e.g. "Destination:" and "100% of ... in ..."), which would otherwise flash 0%.
+                    if (p.Progress <= 0 && string.IsNullOrWhiteSpace(p.ETA)) return;
+
                     _isPostProcessing = false;
                     IsIndeterminate = false;
 
                     var prc = Math.Clamp(p.Progress * 100, 0, 100);
                     long now = Environment.TickCount64;
-                    if (prc >= 100 || Math.Abs(prc - DownloadProgress) >= 0.3 || now - lastUiUpdateTick >= 80)
+                    if (streamCount >= 2)
+                    {
+                        DownloadProgress = 100;
+                        if (prc >= 100 || now - lastUiUpdateTick >= 80)
+                        {
+                            lastUiUpdateTick = now;
+                            DownloadStatus = $"Downloading audio... {prc:F1}% ({p.DownloadSpeed})";
+                        }
+                    }
+                    else if (prc >= 100 || prc - DownloadProgress >= 0.3 || now - lastUiUpdateTick >= 80)
                     {
                         lastUiUpdateTick = now;
-                        DownloadProgress = prc;
+                        if (prc > DownloadProgress)
+                        {
+                            DownloadProgress = prc;
+                        }
                         DownloadStatus = $"Downloading... {DownloadProgress:F1}% ({p.DownloadSpeed})";
                     }
                 }
@@ -149,7 +194,7 @@ namespace CBDownloader.ViewModels
 
             try
             {
-                var result = await _mediaService.DownloadAsync(VideoUrl, IsVideo, true, progress, cts.Token, PlaylistName);
+                var result = await _mediaService.DownloadAsync(VideoUrl, IsVideo, true, progress, cts.Token, PlaylistName, output);
                 _isPostProcessing = false;
                 
                 if (cts.IsCancellationRequested)
