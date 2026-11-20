@@ -1,6 +1,9 @@
 [Setup]
 AppName=CBDownloader
-AppVersion=1.5.9
+AppVersion=1.5.10
+AppPublisher=ClipBoardDownloader
+AppPublisherURL=https://github.com/vibecastle/ClipBoardDownloader
+PrivilegesRequired=lowest
 DefaultDirName={autopf}\CBDownloader
 DefaultGroupName=CBDownloader
 UninstallDisplayIcon={app}\CBDownloader.exe
@@ -11,7 +14,7 @@ OutputDir=Output
 OutputBaseFilename=CBDownloaderInstaller
 ArchitecturesInstallIn64BitMode=x64
 ArchitecturesAllowed=x64
-VersionInfoVersion=1.5.9.0
+VersionInfoVersion=1.5.10.0
 VersionInfoDescription=CBDownloader - Lightweight Video and Audio Downloader
 VersionInfoCompany=ClipBoardDownloader
 VersionInfoCopyright=Copyright (C) 2026
@@ -96,7 +99,7 @@ begin
         InstallerPath := ExpandConstant('{tmp}\windowsdesktop-runtime-win-x64.exe');
         if FileExists(InstallerPath) then
         begin
-          Exec(InstallerPath, '/install /quiet /norestart', '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
+          ShellExec('runas', InstallerPath, '/install /quiet /norestart', '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
         end;
         Result := True;
       except
