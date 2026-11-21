@@ -19,6 +19,8 @@ VersionInfoDescription=CBDownloader - Lightweight Video and Audio Downloader
 VersionInfoCompany=ClipBoardDownloader
 VersionInfoCopyright=Copyright (C) 2026
 VersionInfoProductName=CBDownloader
+VersionInfoProductVersion=1.5.10
+VersionInfoProductTextVersion=1.5.10
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked

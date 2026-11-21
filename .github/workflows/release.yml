@@ -5,12 +5,23 @@ on:
     tags:
       - 'v*' # Trigger on version tags e.g., v1.5.0
   workflow_dispatch: # Allow manual triggering from the GitHub Actions UI
+    inputs:
+      signing_policy:
+        description: 'SignPath signing policy slug for manual builds (e.g., test-signing or release-signing)'
+        required: false
+        default: 'test-signing'
+        type: string
 
 jobs:
   build-and-release:
     runs-on: windows-latest
     permissions:
       contents: write # Required to create a release
+      actions: read   # Required by SignPath GitHub Actions connector
+
+    env:
+      SIGNPATH_ENABLED: ${{ secrets.SIGNPATH_API_TOKEN != '' && vars.SIGNPATH_ORGANIZATION_ID != '' }}
+      SIGNPATH_POLICY: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_policy || vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
 
     steps:
       - name: Checkout Code
@@ -21,11 +32,122 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Read Application Version
+        id: read-version
+        shell: pwsh
+        run: |
+          $match = Select-String -Path installer.iss -Pattern '^AppVersion=(.+)$' | Select-Object -First 1
+          if (-not $match) {
+            throw "AppVersion not found in installer.iss"
+          }
+          $version = $match.Matches[0].Groups[1].Value.Trim()
+          Write-Output "Detected version: $version"
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
       - name: Publish Application (Framework-Dependent Single-File)
         run: dotnet publish CBDownloader\CBDownloader.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:DebugType=none -p:DebugSymbols=false
 
+      - name: Upload Unsigned App Binary
+        id: upload-unsigned-app
+        if: env.SIGNPATH_ENABLED == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-app
+          path: CBDownloader/bin/Release/net8.0-windows/win-x64/publish/CBDownloader.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign App Binary via SignPath
+        if: env.SIGNPATH_ENABLED == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'CBDownloader' }}
+          signing-policy-slug: ${{ env.SIGNPATH_POLICY }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_APP_ARTIFACT_CONFIG_SLUG || 'app-exe' }}
+          github-artifact-id: ${{ steps.upload-unsigned-app.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed-app
+          parameters: |
+            version: "${{ steps.read-version.outputs.version }}"
+
+      - name: Replace and Verify Signed App Binary
+        if: env.SIGNPATH_ENABLED == 'true'
+        shell: pwsh
+        run: |
+          $signedPath = "signed-app/CBDownloader.exe"
+          if (-not (Test-Path $signedPath)) {
+            throw "Signed binary not found at $signedPath"
+          }
+          $targetPath = "CBDownloader/bin/Release/net8.0-windows/win-x64/publish/CBDownloader.exe"
+          Copy-Item -Path $signedPath -Destination $targetPath -Force
+          $sig = Get-AuthenticodeSignature -FilePath $targetPath
+          Write-Output "Signature status: $($sig.Status) | Subject: $($sig.SignerCertificate.Subject)"
+          if ($null -eq $sig.SignerCertificate) {
+            throw "Signed binary has no SignerCertificate"
+          }
+          if ($env:SIGNPATH_POLICY -ne 'test-signing' -and $sig.Status -ne 'Valid') {
+            throw "Unexpected signature status '$($sig.Status)' for policy '$($env:SIGNPATH_POLICY)': $($sig.StatusMessage)"
+          }
+
       - name: Compile Inno Setup Installer
         run: iscc installer.iss # Windows runners have Inno Setup pre-installed in the PATH
+
+      - name: Upload Unsigned Installer
+        id: upload-unsigned-installer
+        if: env.SIGNPATH_ENABLED == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-installer
+          path: Output/CBDownloaderInstaller.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign Installer via SignPath
+        if: env.SIGNPATH_ENABLED == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'CBDownloader' }}
+          signing-policy-slug: ${{ env.SIGNPATH_POLICY }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_INSTALLER_ARTIFACT_CONFIG_SLUG || 'installer-exe' }}
+          github-artifact-id: ${{ steps.upload-unsigned-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed-installer
+          parameters: |
+            version: "${{ steps.read-version.outputs.version }}"
+
+      - name: Replace and Verify Signed Installer
+        if: env.SIGNPATH_ENABLED == 'true'
+        shell: pwsh
+        run: |
+          $signedPath = "signed-installer/CBDownloaderInstaller.exe"
+          if (-not (Test-Path $signedPath)) {
+            throw "Signed installer not found at $signedPath"
+          }
+          $targetPath = "Output/CBDownloaderInstaller.exe"
+          Copy-Item -Path $signedPath -Destination $targetPath -Force
+          $sig = Get-AuthenticodeSignature -FilePath $targetPath
+          Write-Output "Signature status: $($sig.Status) | Subject: $($sig.SignerCertificate.Subject)"
+          if ($null -eq $sig.SignerCertificate) {
+            throw "Signed installer has no SignerCertificate"
+          }
+          if ($env:SIGNPATH_POLICY -ne 'test-signing' -and $sig.Status -ne 'Valid') {
+            throw "Unexpected signature status '$($sig.Status)' for policy '$($env:SIGNPATH_POLICY)': $($sig.StatusMessage)"
+          }
+
+      - name: Upload Installer Artifact (Manual Run)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: CBDownloaderInstaller
+          path: Output/CBDownloaderInstaller.exe
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Create Release and Upload Output
         uses: softprops/action-gh-release@v2
@@ -37,3 +159,5 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
+          body: |
+            See the [Code signing policy](https://github.com/vibecastle/ClipBoardDownloader#code-signing-policy) for details on binary verification and signing.
