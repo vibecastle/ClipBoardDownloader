@@ -41,15 +41,29 @@ namespace CBDownloader.ViewModels
 
         public ObservableCollection<string> AvailableThemes { get; } = new ObservableCollection<string> { "System", "Light", "Dark" };
 
+        public bool IsUnpackaged => !PackageHelper.IsPackaged;
+
+        private bool _isUpdatingStartup;
+
         public SettingsViewModel()
         {
             var version = Assembly.GetExecutingAssembly().GetName().Version;
             CurrentVersion = $"v{version?.Major}.{version?.Minor}.{version?.Build}";
-            StartWithWindows = CheckIfAutoStartEnabled();
 
             DownloadFolderPath = SettingsService.Current.DownloadFolderPath;
             AppTheme = SettingsService.Current.AppTheme;
             AlwaysOnTop = SettingsService.Current.AlwaysOnTop;
+
+            if (PackageHelper.IsPackaged)
+            {
+                _updateStatus = "Updates managed by Microsoft Store";
+                _startWithWindows = false;
+                _ = LoadPackagedStartupStateAsync();
+            }
+            else
+            {
+                _startWithWindows = CheckIfAutoStartEnabled();
+            }
         }
 
         partial void OnAlwaysOnTopChanged(bool value)
@@ -91,8 +105,60 @@ namespace CBDownloader.ViewModels
             }
         }
 
+        private async Task LoadPackagedStartupStateAsync()
+        {
+            var enabled = await PackageHelper.IsStartupTaskEnabledAsync();
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher == null) return;
+
+            await dispatcher.InvokeAsync(() =>
+            {
+                _isUpdatingStartup = true;
+                try
+                {
+                    StartWithWindows = enabled;
+                }
+                finally
+                {
+                    _isUpdatingStartup = false;
+                }
+            });
+        }
+
+        private async Task ApplyPackagedStartupAsync(bool enable)
+        {
+            var (enabled, statusMessage) = await PackageHelper.SetStartupTaskEnabledAsync(enable);
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher == null) return;
+
+            await dispatcher.InvokeAsync(() =>
+            {
+                _isUpdatingStartup = true;
+                try
+                {
+                    StartWithWindows = enabled;
+                    if (!string.IsNullOrEmpty(statusMessage))
+                    {
+                        UpdateStatus = statusMessage;
+                    }
+                }
+                finally
+                {
+                    _isUpdatingStartup = false;
+                }
+            });
+        }
+
         partial void OnStartWithWindowsChanged(bool value)
         {
+            if (_isUpdatingStartup) return;
+
+            if (PackageHelper.IsPackaged)
+            {
+                _ = ApplyPackagedStartupAsync(value);
+                return;
+            }
+
             try
             {
                 using var key = Registry.CurrentUser.OpenSubKey(RegistryRunKey, true);
@@ -140,6 +206,12 @@ namespace CBDownloader.ViewModels
         [RelayCommand]
         private async Task CheckForUpdatesAsync()
         {
+            if (PackageHelper.IsPackaged)
+            {
+                UpdateStatus = "Updates managed by Microsoft Store";
+                return;
+            }
+
             UpdateStatus = "Checking for updates...";
             try
             {

@@ -5,6 +5,9 @@
         ResizeMode="NoResize" WindowStartupLocation="CenterScreen"
         Icon="/Assets/icon.ico" Topmost="True"
         Background="{DynamicResource WindowBackgroundBrush}">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </Window.Resources>
     <Grid Margin="18">
         <StackPanel>
             <!-- Title Header -->
@@ -45,7 +48,8 @@
                         <TextBlock Text="{Binding UpdateStatus}" Foreground="{DynamicResource SecondaryForegroundBrush}" FontSize="11" TextWrapping="Wrap"/>
                     </StackPanel>
                     <Button Grid.Column="1" Content="Check for Updates" Style="{StaticResource PrimaryYellowButton}" 
-                            Height="34" Padding="16,0" Command="{Binding CheckForUpdatesCommand}"/>
+                            Height="34" Padding="16,0" Command="{Binding CheckForUpdatesCommand}"
+                            Visibility="{Binding IsUnpackaged, Converter={StaticResource BoolToVis}}"/>
                 </Grid>
             </Border>
         </StackPanel>

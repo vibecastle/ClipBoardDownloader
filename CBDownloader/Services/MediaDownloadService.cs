@@ -25,6 +25,7 @@ namespace CBDownloader.Services
         private readonly string _binFolder;
         private readonly string _cookiesPath;
         private readonly string _denoPath;
+        private readonly bool _isUsingBundledYtDlp;
         private readonly YoutubeDL _ytdl;
 
         private static HttpClient CreateHttpClient()
@@ -45,13 +46,20 @@ namespace CBDownloader.Services
             var localFFmpeg = Path.Combine(baseDir, "ffmpeg.exe");
             var localDeno = Path.Combine(baseDir, "deno.exe");
 
+            _isUsingBundledYtDlp = File.Exists(localYtDlp);
             _cookiesPath = Path.Combine(_binFolder, CookieFileName);
             _denoPath = File.Exists(localDeno) ? localDeno : Path.Combine(_binFolder, "deno.exe");
 
             var path = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
             if (!path.Contains(_binFolder, StringComparison.OrdinalIgnoreCase))
             {
-                Environment.SetEnvironmentVariable("PATH", _binFolder + ";" + path);
+                path = _binFolder + ";" + path;
+                Environment.SetEnvironmentVariable("PATH", path);
+            }
+            if ((File.Exists(localDeno) || File.Exists(localFFmpeg) || _isUsingBundledYtDlp) &&
+                !path.Contains(baseDir.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+            {
+                Environment.SetEnvironmentVariable("PATH", baseDir + ";" + path);
             }
 
             _ytdl = new YoutubeDL
@@ -99,7 +107,10 @@ namespace CBDownloader.Services
                 if (!_binariesUpdatedInSession)
                 {
                     _binariesUpdatedInSession = true;
-                    await TryUpdateYtDlpAsync();
+                    if (!PackageHelper.IsPackaged && !_isUsingBundledYtDlp)
+                    {
+                        await TryUpdateYtDlpAsync();
+                    }
                 }
             }
             finally

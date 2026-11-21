@@ -1,0 +1,53 @@
+name: Build Microsoft Store MSIX
+
+on:
+  push:
+    tags:
+      - 'v*' # Generate Store-ready MSIX artifact alongside version releases
+  workflow_dispatch:
+    inputs:
+      identity_name:
+        description: 'Store Package/Identity/Name (defaults to vars.MSIX_IDENTITY_NAME)'
+        required: false
+        type: string
+      publisher:
+        description: 'Store Package/Identity/Publisher CN=... (defaults to vars.MSIX_PUBLISHER)'
+        required: false
+        type: string
+      publisher_display_name:
+        description: 'Store PublisherDisplayName (defaults to vars.MSIX_PUBLISHER_DISPLAY_NAME)'
+        required: false
+        type: string
+
+jobs:
+  build-msix:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build Store MSIX Package
+        shell: pwsh
+        env:
+          MSIX_IDENTITY_NAME: ${{ inputs.identity_name || vars.MSIX_IDENTITY_NAME || 'vibecastle.CBDownloader' }}
+          MSIX_PUBLISHER: ${{ inputs.publisher || vars.MSIX_PUBLISHER || 'CN=vibecastle' }}
+          MSIX_PUBLISHER_DISPLAY_NAME: ${{ inputs.publisher_display_name || vars.MSIX_PUBLISHER_DISPLAY_NAME || 'ClipBoardDownloader' }}
+        run: |
+          & ./packaging/msix/build-msix.ps1 `
+            -IdentityName $env:MSIX_IDENTITY_NAME `
+            -Publisher $env:MSIX_PUBLISHER `
+            -PublisherDisplayName $env:MSIX_PUBLISHER_DISPLAY_NAME
+
+      - name: Upload MSIX Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: CBDownloader-MSIX-x64
+          path: Output/CBDownloader_*_x64.msix
+          if-no-files-found: error
+          retention-days: 14

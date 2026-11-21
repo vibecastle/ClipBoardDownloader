@@ -494,3 +494,8 @@ makeicon.ps1
 # Binaries
 *.exe
 
+# MSIX packaging staging and cache
+.msix-staging/
+.msix-cache/
+*.msixupload
+

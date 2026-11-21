@@ -1,0 +1,29 @@
+CBDownloader - Third-Party Software Notices
+============================================
+
+CBDownloader includes or integrates the following open-source components:
+
+1. yt-dlp
+   License: The Unlicense
+   Website: https://github.com/yt-dlp/yt-dlp
+
+2. FFmpeg (BtbN LGPL Windows x64 Build)
+   License: GNU Lesser General Public License (LGPL) version 2.1 or later
+   Website: https://ffmpeg.org
+   Builds & Source: https://github.com/BtbN/FFmpeg-Builds
+
+3. Deno
+   License: MIT License
+   Website: https://github.com/denoland/deno
+
+4. YoutubeDLSharp
+   License: BSD-3-Clause License
+   Website: https://github.com/Bluegrams/YoutubeDLSharp
+
+5. Newtonsoft.Json
+   License: MIT License
+   Website: https://www.newtonsoft.com/json
+
+6. CommunityToolkit.Mvvm
+   License: MIT License
+   Website: https://github.com/CommunityToolkit/dotnet
