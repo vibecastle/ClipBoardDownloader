@@ -1,6 +1,6 @@
 [Setup]
 AppName=CBDownloader
-AppVersion=1.5.10
+AppVersion=1.5.11
 AppPublisher=ClipBoardDownloader
 AppPublisherURL=https://github.com/vibecastle/ClipBoardDownloader
 PrivilegesRequired=lowest
@@ -8,19 +8,19 @@ DefaultDirName={autopf}\CBDownloader
 DefaultGroupName=CBDownloader
 UninstallDisplayIcon={app}\CBDownloader.exe
 SetupIconFile=CBDownloader\Assets\icon.ico
-Compression=lzma2/max
-SolidCompression=yes
+Compression=zip
+SolidCompression=no
 OutputDir=Output
 OutputBaseFilename=CBDownloaderInstaller
 ArchitecturesInstallIn64BitMode=x64
 ArchitecturesAllowed=x64
-VersionInfoVersion=1.5.10.0
+VersionInfoVersion=1.5.11.0
 VersionInfoDescription=CBDownloader - Lightweight Video and Audio Downloader
 VersionInfoCompany=ClipBoardDownloader
 VersionInfoCopyright=Copyright (C) 2026
 VersionInfoProductName=CBDownloader
-VersionInfoProductVersion=1.5.10
-VersionInfoProductTextVersion=1.5.10
+VersionInfoProductVersion=1.5.11
+VersionInfoProductTextVersion=1.5.11
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
@@ -43,33 +43,51 @@ Filename: "{app}\CBDownloader.exe"; Parameters: "--show"; Description: "{cm:Laun
 var
   DownloadPage: TDownloadWizardPage;
 
-function IsDotNet8DesktopInstalled(): Boolean;
+function HasDotNet8InRegKey(const SubKey: String): Boolean;
 var
-  ResultCode: Integer;
+  Versions: TArrayOfString;
+  I: Integer;
 begin
   Result := False;
-  // Check common registry locations for .NET 8 Windows Desktop Runtime (x64)
-  if RegKeyExists(HKLM, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App') then
+  if RegGetValueNames(HKLM, SubKey, Versions) then
+  begin
+    for I := 0 to GetArrayLength(Versions) - 1 do
+    begin
+      if Copy(Versions[I], 1, 2) = '8.' then
+      begin
+        Result := True;
+        Exit;
+      end;
+    end;
+  end;
+end;
+
+function IsDotNet8DesktopInstalled(): Boolean;
+var
+  FindRec: TFindRec;
+begin
+  Result := False;
+  // Check 64-bit registry locations for .NET 8.x Windows Desktop Runtime (x64)
+  if HasDotNet8InRegKey('SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App') or
+     HasDotNet8InRegKey('SOFTWARE\WOW6432Node\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App') then
   begin
     Result := True;
     Exit;
   end;
-  if RegKeyExists(HKLM, 'SOFTWARE\WOW6432Node\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App') then
+  // Fallback check via Program Files directory for an 8.* runtime folder
+  if FindFirst(ExpandConstant('{commonpf64}\dotnet\shared\Microsoft.WindowsDesktop.App\8.*'), FindRec) then
   begin
-    Result := True;
-    Exit;
-  end;
-  // Fallback check via Program Files directory
-  if DirExists(ExpandConstant('{commonpf64}\dotnet\shared\Microsoft.WindowsDesktop.App')) then
-  begin
-    Result := True;
-    Exit;
-  end;
-  // Fallback check via dotnet CLI
-  if Exec('cmd.exe', '/c dotnet --list-runtimes | findstr /I "Microsoft.WindowsDesktop.App 8."', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
-  begin
-    if ResultCode = 0 then
-      Result := True;
+    try
+      repeat
+        if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
+        begin
+          Result := True;
+          Exit;
+        end;
+      until not FindNext(FindRec);
+    finally
+      FindClose(FindRec);
+    end;
   end;
 end;
 

@@ -9,9 +9,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
-    <Version>1.5.10</Version>
-    <FileVersion>1.5.10.0</FileVersion>
-    <AssemblyVersion>1.5.10.0</AssemblyVersion>
+    <Version>1.5.11</Version>
+    <FileVersion>1.5.11.0</FileVersion>
+    <AssemblyVersion>1.5.11.0</AssemblyVersion>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <Product>CBDownloader</Product>
     <Company>ClipBoardDownloader</Company>
     <Description>CBDownloader - Lightweight Video and Audio Downloader</Description>

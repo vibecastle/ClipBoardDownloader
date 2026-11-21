@@ -50,7 +50,7 @@ Free code signing provided by [SignPath.io](https://signpath.io/), certificate b
 
 ### Scope & build provenance
 
-Only `CBDownloader.exe` and `CBDownloaderInstaller.exe` built from this public repository via GitHub-hosted runners in [`.github/workflows/release.yml`](.github/workflows/release.yml) are signed. Third-party open-source dependencies downloaded at runtime (`yt-dlp`, `ffmpeg`, `deno`) are never re-signed by this project.
+Only `CBDownloader.exe`, `CBDownloader.dll`, and `CBDownloaderInstaller.exe` built from this public repository via GitHub-hosted runners in [`.github/workflows/release.yml`](.github/workflows/release.yml) are signed. Third-party open-source dependencies downloaded at runtime (`yt-dlp`, `ffmpeg`, `deno`) are never re-signed by this project.
 
 ### Privacy policy
 

@@ -10,5 +10,11 @@
              company-name="ClipBoardDownloader">
       <authenticode-sign />
     </pe-file>
+    <pe-file path="CBDownloader.dll"
+             product-name="CBDownloader"
+             product-version="${version}"
+             company-name="ClipBoardDownloader">
+      <authenticode-sign />
+    </pe-file>
   </zip-file>
 </artifact-configuration>
